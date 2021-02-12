@@ -45,6 +45,12 @@ listing=dir(strcat(workingdir,'*.CZI'));
 
 %% Parameters
 debug=0;
+
+% The Run number is used to track multiple runs of the software, and is used in
+% export file names and in the DataCells array. Note: it is a character
+% array / string!
+run='1'; 
+
 %erosiondisk=strel('disk', 10); % EditHere
 %analysisdisk=strel('disk', 20); % EditHere
 %tophatdisk=strel('disk',30); % EditHere
@@ -63,15 +69,14 @@ se9=strel('disk',9);
 se10=strel('disk',10);
 se25=strel('disk',25);
 
-% The Run number is used to track multiple runs of the software, and is used in
-% export file names and in the DataCells array. Note: it is a character
-% array / string!
-run='1'; 
-
 % These are values of Gal8 and Nuclear stain above background. 
 galectin8_threshold=100;
 nuclear_threshold=400;
 
+% Define structural elements to be used in processing images
+se_gal8th = se25; % Gal8 tophat
+se_gal8op = se3; % Gal8 open
+se_nucop = se25; % Nucleus open
 
 %% Analysis
 DataCells = [{'Run'},{'Well'},{'# Cells'},{'Gal8 sum'},{'Gal8/cell'},...
@@ -96,9 +101,9 @@ for j=1:length(listing) % all images
     % Notably, at this point, you should have your nuclear image living
     % within "nuc" and your gal8 image living within "gal8"
     
-    gal8th=imtophat(gal8,se25); % Clean image with tophat filter for thresholding 
+    gal8th=imtophat(gal8,se_gal8th); % Clean image with tophat filter for thresholding 
     gal8pos1=gal8th>galectin8_threshold; % threshold image
-    gal8pos2=imopen(gal8pos1,se3); % open thresholded image
+    gal8pos2=imopen(gal8pos1,se_gal8op); % open thresholded image
     circlelayer=xor(imdilate(gal8pos2,se10),imdilate(gal8pos2,se8));
     % Create circle layer for circled ouptut images
     
@@ -117,7 +122,7 @@ for j=1:length(listing) % all images
     
     % Code below counts cell number
     nthr=nuc>nuclear_threshold; % thresholding
-    nuc1=(imopen(nthr,se25)); % remove small features
+    nuc1=(imopen(nthr,se_nucop)); % remove small features
     disttrans=-bwdist(~nuc1); % distance transform
     mask=imextendedmin(disttrans,2); % removes noise from distance transform
     disttrans2=imimposemin(disttrans,mask);
