@@ -41,8 +41,6 @@
 % that may need to be modified are tagged with "% EditHere" comments which
 % can be easily found with Control-F text search
 
-% test
-
 clc, clear, clear all;
 workingdir=[pwd,'/Test/']; % With trailing slash! Where images to be analyzed live
 exportdir=[pwd,'/Exporttest/']; % With trailing slash! Where exported images go
