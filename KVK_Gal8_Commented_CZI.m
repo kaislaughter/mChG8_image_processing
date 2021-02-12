@@ -40,10 +40,12 @@
 % galectin8_threshold, nuclear_threshold, These and other parts of code
 % that may need to be modified are tagged with "% EditHere" comments which
 % can be easily found with Control-F text search
-
+uigetdir()
 clc, clear, clear all;
-workingdir=[pwd,'/Test/']; % With trailing slash! Where images to be analyzed live
-exportdir=[pwd,'/Exporttest/']; % With trailing slash! Where exported images go
+display('Choose input directory')
+workingdir=[uigetdir(),'/']; % With trailing slash! Where images to be analyzed live
+display('Choose output directory')
+exportdir=[uigetdir(),'/']; % With trailing slash! Where exported images go
 filetype='png';
 listing=dir(strcat(workingdir,'*.CZI'));
 
