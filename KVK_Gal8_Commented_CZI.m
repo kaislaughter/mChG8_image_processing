@@ -22,18 +22,12 @@
 % This will measure the total Gal8 recruited to puncta and count cell
 % nuclei in each frame.
 
-% This code assumes you have exported 2 frame images consisting of a
-% nuclear stain in channel 1 (e.g., DAPI or Hoechest) and a Gal8
-% fluorescent stain in channel 2 (e.g., Gal8-YFP). Notably, we used two
-% channel Nikon ND2 files as our raw data, which are 12 bit data; however,
-% MATLAB plays more nicely with 16 bit data so we scale this with ".*2^4"
-% Our images were 2048 px squared with a 20x objective, so if you use
-% larger or smaller images or higher mag objectives, you will likely need
-% to edit this.
-
-% Images were exported to 2 page TIF images using Nikon NIS Elements. If
-% you use alternate file formats or use separate export files for each
-% channel, please edit the code as appropriate.
+% This code assumes you have 2 (or 3) frame CZI images consisting of a
+% Gal8 fluorescent stain in channel 1 (e.g., Gal8-mCherry)and a nuclear
+% stain in channel 2 (e.g., DAPI or Hoechest). MATLAB plays more nicely
+% with 16 bit data. Original script used images that were 2048 px squared
+% with a 20x objective, so if you use larger or smaller images or higher
+% mag objectives, you will likely need to edit this.
 
 % You *must* edit the workingdir and exportdir variables for this code to
 % work. You will need to edit the following variables to fit your data:
@@ -43,17 +37,17 @@
 
 clc, clear, clear all;
 display('Choose input directory')
-workingdir=[uigetdir(),'/']; % With trailing slash! Where images to be analyzed live
+workingdir=[uigetdir(),'/']; % Prompts user for input directory
 display('Choose output directory')
-exportdir=[uigetdir(),'/']; % With trailing slash! Where exported images go
+exportdir=[uigetdir(),'/']; % Prompts user for output directory
 filetype='png';
 listing=dir(strcat(workingdir,'*.CZI'));
 
 %% Parameters
 debug=0;
-erosiondisk= strel('disk', 10); % EditHere
-analysisdisk= strel('disk', 20); % EditHere
-tophatdisk=strel('disk',30); % EditHere
+%erosiondisk=strel('disk', 10); % EditHere
+%analysisdisk=strel('disk', 20); % EditHere
+%tophatdisk=strel('disk',30); % EditHere
 
 % For conveience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
@@ -76,7 +70,7 @@ run='1';
 
 % These are values of Gal8 and Nuclear stain above background. 
 galectin8_threshold=100;
-nuclear_threshold=800;
+nuclear_threshold=400;
 
 
 %% Analysis
@@ -97,12 +91,7 @@ for j=1:length(listing) % all images
     nuc = series1{2, 1}; % Nuclei image is the second channel
 
     fname = currfile; % sets fname to current file
-    %info = imfinfo(fname); % extracts metadata from current image
-    %num_images = numel(info);
     well=listing(j,1).name(1:end-4)
-    
-    %nuc = imread(fname, 1, 'Info', info);
-    %gal8 = imread(fname, 2, 'Info', info);
     
     % Notably, at this point, you should have your nuclear image living
     % within "nuc" and your gal8 image living within "gal8"
@@ -111,33 +100,35 @@ for j=1:length(listing) % all images
     gal8pos1=gal8th>galectin8_threshold; % threshold image
     gal8pos2=imopen(gal8pos1,se3); % open thresholded image
     circlelayer=xor(imdilate(gal8pos2,se10),imdilate(gal8pos2,se8));
+    % Create circle layer for circled ouptut images
     
+    % Generate output composite images
     comp=cat(3,circlelayer.*0,gal8.*100-2e4,nuc.*50);
     circled=cat(3,circlelayer.*2^16,gal8.*100-2e4,nuc.*50);
     
     % Count foci
-    basinmap2=watershed(~gal8pos2);
-    fociarea=imdilate(gal8pos2,se1);
-    focimap=basinmap2; focimap(~fociarea)=0;
-    focimapc=(label2rgb(focimap,'jet','w','shuffle'));
-    numfoci=max(focimap(:));
+    basinmap2=watershed(~gal8pos2); % watershed to count foci
+    %fociarea=imdilate(gal8pos2,se1);
+    fociarea=gal8pos2;
+    focimap=basinmap2; 
+    focimap(~fociarea)=0;
+    focimapc=(label2rgb(focimap,'jet','w','shuffle')); % rainbow map of foci
+    numfoci=max(focimap(:)); % stores count of foci
     
-    % Code below counts cell number. Use your preferred cell counting
-    % algorithm
-    nuclear_threshold=400;
-    nthr=nuc>nuclear_threshold;
-    nuc1=(imopen(nthr,se25));
-    disttrans=-bwdist(~nuc1);
-    mask=imextendedmin(disttrans,2);
+    % Code below counts cell number
+    nthr=nuc>nuclear_threshold; % thresholding
+    nuc1=(imopen(nthr,se25)); % remove small features
+    disttrans=-bwdist(~nuc1); % distance transform
+    mask=imextendedmin(disttrans,2); % removes noise from distance transform
     disttrans2=imimposemin(disttrans,mask);
-    basinmap=watershed(disttrans2);
-    cellarea=imdilate(nuc1, se3) ;
-    cellmap=basinmap; 
+    basinmap=watershed(disttrans2); % watershed to count nuclei
+    cellarea=imdilate(nuc1, se3); % dilates image for output 
+    cellmap=basinmap;
     cellmap(~cellarea)=0;
     nucmap=(label2rgb(cellmap,'jet','w','shuffle')); %Generates "sanity check" rainbow map
     
     % measurement
-    numcell=max(cellmap(:));
+    numcell=max(cellmap(:)); % stores nuclei count as numcell
     galsum=sum(gal8(gal8pos2)); %Integrate Gal8 pixel intensities within gal8pos2 mask
     DataCells=[DataCells;{run},{well},{numcell},{galsum},{uint64(galsum)...
         /uint64(numcell)},{numfoci},{double(numfoci)/double(numcell)}]
