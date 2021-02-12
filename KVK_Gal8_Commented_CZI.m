@@ -40,7 +40,7 @@
 % galectin8_threshold, nuclear_threshold, These and other parts of code
 % that may need to be modified are tagged with "% EditHere" comments which
 % can be easily found with Control-F text search
-uigetdir()
+
 clc, clear, clear all;
 display('Choose input directory')
 workingdir=[uigetdir(),'/']; % With trailing slash! Where images to be analyzed live
