@@ -127,6 +127,7 @@ for j=1:length(listing) % all images
     cellmap(~cellarea)=0;
     nucmap=(label2rgb(cellmap,'jet','w','shuffle')); %Generates "sanity check" rainbow map
     
+    
     % measurement
     numcell=max(cellmap(:)); % stores nuclei count as numcell
     galsum=sum(gal8(gal8pos2)); %Integrate Gal8 pixel intensities within gal8pos2 mask
