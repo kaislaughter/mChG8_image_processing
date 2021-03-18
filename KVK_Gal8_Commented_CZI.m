@@ -70,7 +70,7 @@ se10=strel('disk',10);
 se25=strel('disk',25);
 
 % These are values of Gal8 and Nuclear stain above background. 
-galectin8_threshold=100;
+galectin8_threshold=40;
 nuclear_threshold=400;
 
 % Define structural elements to be used in processing images
@@ -142,8 +142,8 @@ for j=1:length(listing) % all images
     %begin exports
     exportbase=strcat(exportdir,well,'_',run,'_');
     imwrite(nucmap,strcat(exportbase,'nucmap','.png'),'png');
-    imwrite(circled,strcat(exportbase,'composite_circled','.png'),'png');
-    imwrite(comp,strcat(exportbase,'composite','.png'),'png');
+    %imwrite(circled,strcat(exportbase,'composite_circled','.png'),'png');
+    %imwrite(comp,strcat(exportbase,'composite','.png'),'png');
     
 end
-writetable(cell2table(DataCells),strcat('Output.xls')); % Exports an csv sheet of your data
+writetable(cell2table(DataCells),strcat(exportdir,'Output2.xls')); % Exports an csv sheet of your data
