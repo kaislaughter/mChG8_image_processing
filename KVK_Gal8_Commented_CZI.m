@@ -70,7 +70,7 @@ se10=strel('disk',10);
 se25=strel('disk',25);
 
 % These are values of Gal8 and Nuclear stain above background. 
-galectin8_threshold=40;
+galectin8_threshold=100;
 nuclear_threshold=400;
 
 % Define structural elements to be used in processing images
@@ -80,7 +80,8 @@ se_nucop = se25; % Nucleus open
 
 %% Analysis
 DataCells = [{'Run'},{'Well'},{'# Cells'},{'Gal8 sum'},{'Gal8/cell'},...
-    {'# Foci'},{'# Foci/cell'}]; % Initializes cell variable for all data
+    {'# Foci'},{'# Foci/cell'},{'Cy5 sum'}]; 
+    % Initializes cell variable for all data
 
     % The next few lines are specific to CZI images. Edit from here
     % if you have alternate arrangements. 
@@ -94,7 +95,8 @@ for j=1:length(listing) % all images
 
     gal8 = series1{1, 1}; % Gal-8 image is the first channel
     nuc = series1{2, 1}; % Nuclei image is the second channel
-
+    cy5 = series1{3, 1}; % Cy5 image is the third channel
+    
     fname = currfile; % sets fname to current file
     well=listing(j,1).name(1:end-4)
     
@@ -132,18 +134,22 @@ for j=1:length(listing) % all images
     cellmap(~cellarea)=0;
     nucmap=(label2rgb(cellmap,'jet','w','shuffle')); %Generates "sanity check" rainbow map
     
-    
+    % Integrates Cy5 channel for uptake
+    cy5int = sum(sum(cy5));
+
     % measurement
     numcell=max(cellmap(:)); % stores nuclei count as numcell
     galsum=sum(gal8(gal8pos2)); %Integrate Gal8 pixel intensities within gal8pos2 mask
     DataCells=[DataCells;{run},{well},{numcell},{galsum},{uint64(galsum)...
-        /uint64(numcell)},{numfoci},{double(numfoci)/double(numcell)}]
+        /uint64(numcell)},{numfoci},{double(numfoci)/double(numcell)},...
+        {cy5int}]
       
     %begin exports
     exportbase=strcat(exportdir,well,'_',run,'_');
-    imwrite(nucmap,strcat(exportbase,'nucmap','.png'),'png');
+    %imwrite(nucmap,strcat(exportbase,'nucmap','.png'),'png');
     %imwrite(circled,strcat(exportbase,'composite_circled','.png'),'png');
-    %imwrite(comp,strcat(exportbase,'composite','.png'),'png');
+    imwrite(comp,strcat(exportbase,'composite','.png'),'png');
     
 end
-writetable(cell2table(DataCells),strcat(exportdir,'Output2.xls')); % Exports an csv sheet of your data
+writetable(cell2table(DataCells),strcat(exportdir,'Output.xls')); 
+% Exports an csv sheet of your data
