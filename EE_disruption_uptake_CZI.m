@@ -42,6 +42,7 @@ display('Choose output directory')
 exportdir=[uigetdir(),'/']; % Prompts user for output directory
 filetype='png';
 listing=dir(strcat(workingdir,'*.CZI'));
+num_images = length(listing)
 
 %% Parameters
 debug=0;
@@ -50,6 +51,9 @@ debug=0;
 % export file names and in the DataCells array. Note: it is a character
 % array / string!
 run='1'; 
+
+tech_replicates = 3;
+plate_columns = 10;
 
 %erosiondisk=strel('disk', 10); % EditHere
 %analysisdisk=strel('disk', 20); % EditHere
@@ -83,16 +87,22 @@ se_uptaketh = se25; % Uptake tophat
 se_uptakeop = se3; % Uptake open
 
 %% Analysis
-DataCells = [{'Run'},{'Well'},{'# Cells'},{'Gal8 sum'},{'Gal8/cell'},...
-    {'# Foci'},{'# Foci/cell'},{'Cy5 sum'},{'# NPs'},{'# NPs/cell'}]; 
-    % Initializes cell variable for all data
 
-    % The next few lines are specific to CZI images. Edit from here
-    % if you have alternate arrangements. 
+% Initialize cell variable for all data.
+outputHeaders = {'Run','Filename','Well #','# Cells','Gal8 sum',...
+    'Gal8/cell','# Foci','# Foci/cell','NP signal sum','# NPs',...
+    '# NPs/cell', 'Gal8-NP correlation coefficient',...
+    'Fraction Gal8 channel overlapping with NPs',...
+    'Fraction NP channel overlapping with Gal8'};
+outputArray = cell(num_images + 1, length(outputHeaders));
+outputArray(1,:) = outputHeaders;
 
-for j=1:length(listing) % all images
+for j=1:num_images % all images
     
     currfile=strcat(workingdir,listing(j,1).name); % defines current file
+    fn = listing(j,1).name;
+    wellNum = extractBetween(fn, '(', ')');
+    wellNum = wellNum{1};
   
     data = bfopen(currfile); % opens image using Bio-Formats
     series1 = data{1,1}; % stores the first image of the stack as series1
@@ -106,64 +116,60 @@ for j=1:length(listing) % all images
     uptake_bg = mode(uptake,'all');
     
     fname = currfile; % sets fname to current file
-    well=listing(j,1).name(1:end-4)
+    well = listing(j,1).name(1:end-4);
     
     % Notably, at this point, you should have your nuclear image living
     % within "nuc" and your gal8 image living within "gal8"
     
-    gal8th=imtophat(gal8,se_gal8th); % Clean image with tophat filter for thresholding 
-    gal8pos1=gal8th>galectin8_threshold; % threshold image
-    gal8pos2=imopen(gal8pos1,se_gal8op); % open thresholded image
-    circlelayer=xor(imdilate(gal8pos2,se10),imdilate(gal8pos2,se8));
-    % Create circle layer for circled ouptut images
+    % Identify gal8 foci.
+    fociCells = identifyFoci(gal8, se_gal8th, se_gal8op);
+    numFoci = fociCells{1};
+    gal8ThreshClean = fociCells{2};
+    gal8Labels = fociCells{3};
+    focimapc=(label2rgb(gal8Labels,'jet','w','shuffle')); % rainbow map of foci
+    gal8Circles = xor(imdilate(gal8ThreshClean, se10),...
+        imdilate(gal8ThreshClean, se8));
     
-    uptaketh=imtophat(uptake,se_uptaketh); % Clean image with tophat filter for thresholding 
-    uptakepos1=uptaketh>uptake_threshold; % threshold image
-    uptakepos2=imopen(uptakepos1,se_uptakeop); % open thresholded image
+    % Identify endocytosed NPs.
+    NPCells = identifyFoci(uptake, se_uptaketh, se_uptakeop);
+    numNPs = NPCells{1};
+    NPThreshClean = NPCells{2};
+    NPLabels = NPCells{3};
+    npmapc=(label2rgb(NPLabels,'jet','w','shuffle')); % rainbow map of foci
+    NPCircles = xor(imdilate(gal8ThreshClean, se10),...
+        imdilate(gal8ThreshClean, se8));
+    
+    % Identify nuclei.
+    nucCells = identifyNuclei(nuc, se_nucop);
+    numNuclei = nucCells{1};
+    nucThreshClean = nucCells{2};
+    nucLabels = nucCells{3};
+    
+    % Calculate correlation between gal8 foci and NPs.
+    mandersCells = Manders_ED(gal8ThreshClean, NPThreshClean);
+    rP = mandersCells{1};
+    rOverlap = mandersCells{2};
+    rch1 = mandersCells{3};
+    rch2 = mandersCells{4};
+    ch1Overlap = mandersCells{5};
+    ch2Overlap = mandersCells{6};
     
     % Generate output composite images
-    comp=cat(3,(uptake-uptake_bg).*100,(gal8-gal8_bg).*100,(nuc-nuc_bg).*50);
-    circled=cat(3,circlelayer.*2^16,gal8.*100-2e4,nuc.*50);
-    
-    % Count foci
-    basinmap2=watershed(~gal8pos2); % watershed to count foci
-    %fociarea=imdilate(gal8pos2,se1);
-    fociarea=gal8pos2;
-    focimap=basinmap2; 
-    focimap(~fociarea)=0;
-    focimapc=(label2rgb(focimap,'jet','w','shuffle')); % rainbow map of foci
-    numfoci=max(focimap(:)); % stores count of foci
-    
-    % Count particles taken up
-    basinmap3=watershed(~uptakepos2); % watershed to count foci
-    %fociarea=imdilate(gal8pos2,se1);
-    nparea=uptakepos2;
-    npmap=basinmap3; 
-    npmap(~nparea)=0;
-    npmapc=(label2rgb(npmap,'jet','w','shuffle')); % rainbow map of foci
-    numnp=max(npmap(:)); % stores count of foci
-    
-    % Code below counts cell number
-    nthr=nuc>nuclear_threshold; % thresholding
-    nuc1=(imopen(nthr,se_nucop)); % remove small features
-    disttrans=-bwdist(~nuc1); % distance transform
-    mask=imextendedmin(disttrans,2); % removes noise from distance transform
-    disttrans2=imimposemin(disttrans,mask);
-    basinmap=watershed(disttrans2); % watershed to count nuclei
-    cellarea=imdilate(nuc1, se3); % dilates image for output 
-    cellmap=basinmap;
-    cellmap(~cellarea)=0;
-    nucmap=(label2rgb(cellmap,'jet','w','shuffle')); %Generates "sanity check" rainbow map
+    comp=cat(3,NPThreshClean.*100, gal8ThreshClean.*100,...
+        nucThreshClean.*50);
+    circled=cat(3,gal8Circles.*2^16,gal8.*100-2e4,nuc.*50);
     
     % Integrates Cy5 channel for uptake
-    cy5int = sum(sum(uptake));
+    cy5int = sum(uptake(:));
 
     % measurement
-    numcell=max(cellmap(:)); % stores nuclei count as numcell
-    galsum=sum(gal8(gal8pos2)); %Integrate Gal8 pixel intensities within gal8pos2 mask
-    DataCells=[DataCells;{run},{well},{numcell},{galsum},{uint64(galsum)...
-        /uint64(numcell)},{numfoci},{double(numfoci)/double(numcell)},...
-        {cy5int},{numnp},{double(numnp)/double(numcell)}]
+    gal8Sum=sum(gal8(gal8ThreshClean)); %Integrate Gal8 pixel intensities within gal8pos2 mask
+    NPSum = sum(uptake(NPThreshClean));
+    outputArray(j+1,:) = {run, well, wellNum, numNuclei,...
+        gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
+        double(numFoci)/double(numNuclei), NPSum, numNPs,...
+        double(numNPs)/double(numNuclei), rP, ch1Overlap,...
+        ch2Overlap}
       
     %begin exports
     exportbase=strcat(exportdir,well,'_',run,'_');
@@ -172,5 +178,6 @@ for j=1:length(listing) % all images
     imwrite(comp,strcat(exportbase,'composite','.png'),'png');
     
 end
-writetable(cell2table(DataCells),strcat(exportdir,'Output.xlsx')); 
-% Exports an csv sheet of your data
+
+% Export an Excel sheet of your data
+writetable(cell2table(outputArray),strcat(exportdir,'Output.xlsx')); 
