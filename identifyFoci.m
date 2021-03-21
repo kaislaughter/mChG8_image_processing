@@ -8,6 +8,7 @@ function [dataCells] = identifyFoci(ch, diskElementTH, diskElementOpen)
 %   Outputs (as elements of a cell array):
 %       nFoci: the number of spots detected.
 %       chThresh: the filtered and thresholded input channel.
+%       chBinary: binarized image where foci have value of true
 %       fociLabels: a label matrix containing all the detected foci.
 
 % Adaptive background removal using a top hat filter.
@@ -15,14 +16,16 @@ chFiltered = imtophat(ch, diskElementTH);
 % Threshold image so only bright spots remain.
 chAverage = mean(chFiltered, 'all');
 chSD = std(single(chFiltered), 0, 'all'); % std doesn't accept uint16 data
-chThresh = chFiltered > (chAverage + chSD);
-chThreshClean = imopen(chThresh, diskElementOpen);
+chBinary = chFiltered > (chAverage + chSD);
+chBinaryClean = imopen(chBinary, diskElementOpen);
+chThresh = chFiltered;
+chThresh(~chBinaryClean) = 0;
 
 % Count foci.
-fociLabels = watershed(~chThreshClean);
-fociLabels(~chThreshClean) = 0;
+fociLabels = watershed(~chBinaryClean);
+fociLabels(~chBinaryClean) = 0;
 nFoci = max(fociLabels(:));
 
-dataCells = {nFoci, chThreshClean, fociLabels};
+dataCells = {nFoci, chThresh, chBinaryClean, fociLabels};
 end
 

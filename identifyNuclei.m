@@ -5,26 +5,29 @@ function [dataCell] = identifyNuclei(channel, diskElementOpen)
 %       diskElementOpen: disk element used to remove noise
 %   Outputs (as elements in the cell array dataCell):
 %       numNuclei: the number of nuclei detected
-%       chThreshClean: the input channel with background removed.
+%       chThresh: the input channel with background removed.
+%       chBinaryClean: binarized image where nuclei pixels have value true
 %       cellLabels:  a label matrix containing all the detected nuclei.
 
 % Threshold the image to remove the background.
 chAverage = mean(channel, 'all');
-chSD = std(single(chAverage), 0, 'all');
-chThresh = channel > (chAverage + chSD);
+chSD = uint16(std(single(chAverage), 0, 'all'));
+chBinary = channel > (chAverage + chSD);
 % Open the image to remove noise.
-chThreshClean = imopen(chThresh, diskElementOpen); % remove small features
+chBinaryClean = imopen(chBinary, diskElementOpen); % remove small features
+chThresh = channel - (chAverage + chSD);
+chThresh(~chBinaryClean) = 0;
 
 % Watershed to split nuclei that are overlapping and then count them.
-distTrans = -bwdist(~chThreshClean); % distance transform
+distTrans = -bwdist(~chBinaryClean); % distance transform
 mask = imextendedmin(distTrans, 2); % removes noise from distance transform
 distTrans2 = imimposemin(distTrans, mask);
 basinMap = watershed(distTrans2);
-cellArea = imdilate(chThreshClean, strel('disk', 3));
+cellArea = imdilate(chBinaryClean, strel('disk', 3));
 cellLabels = basinMap;
 cellLabels(~cellArea) = 0;
 numNuclei = max(cellLabels(:));
 
-dataCell = {numNuclei, chThreshClean, cellLabels};
+dataCell = {numNuclei, chThresh, chBinaryClean, cellLabels};
 end
 
