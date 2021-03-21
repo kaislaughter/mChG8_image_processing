@@ -99,7 +99,7 @@ for j = 1:num_images % Iterate over all images.
     fn = listing(j,1).name;
     % Extract the well number from the filename.
     wellNum = extractBetween(fn, '(', ')');
-    wellNum = wellNum{1};
+    wellNum = str2double(wellNum{1});
     groupNum = 10 * fix(wellNum / (PLATE_COLUMNS * TECH_REPLICATES))...
         + rem(wellNum, PLATE_COLUMNS);
     
