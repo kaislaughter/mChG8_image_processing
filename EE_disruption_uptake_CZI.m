@@ -29,21 +29,23 @@
 % with a 20x objective, so if you use larger or smaller images or higher
 % mag objectives, you will likely need to edit this.
 clc, clear;
+warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 
 %% Parameters
-DEBUG = 0;
-
-% Choose which images will be exported and in what format.
-FILETYPE = 'png';
-EXPORT_NUC_MAP = true;
-EXPORT_GAL8_ANNOTATIONS = true;
-EXPORT_NP_ANNOTATIONS = true;
-EXPORT_COMPOSITE = true;
-
 % The Run number is used to track multiple runs of the software, and is used in
 % export file names and in the DataCells array. Note: it is a character
 % array / string!
-RUN = '1'; 
+RUN = '1';
+
+% Choose which images will be exported and in what format.
+FILETYPE = 'png';
+EXPORT_NUC_MAP = false;
+EXPORT_GAL8_ANNOTATIONS = true;
+EXPORT_NP_ANNOTATIONS = true;
+EXPORT_COMPOSITE = true;
+GAL8_BRIGHTEN = 100;  % Signal multiplier for display.
+NP_BRIGHTEN = 100;  % Signal multiplier for display.
+NUC_BRIGHTEN = 50;  % Signal multiplier for display.
 
 % Define technical replicates and plate size. The script assumes technical
 % replicates are placed in the same column.
@@ -51,6 +53,32 @@ RUN = '1';
 % them will not affect quantification in any way.
 TECH_REPLICATES = 3;
 PLATE_COLUMNS = 10;
+GROUP_TITLES = {...
+    'Group 1',...
+    'Group 2',...
+    'Group 3',...
+    'Group 4',...
+    'Group 5',...
+    'Group 6',...
+    'Group 7',...
+    'Group 8',...
+    'Group 9',...
+    'Group 10',...
+    'Group 11',...
+    'Group 12',...
+    'Group 13',...
+    'Group 14',...
+    'Group 15',...
+    'Group 16',...
+    'Group 17',...
+    'Group 18',...
+    'Group 19',...
+    'Group 20'};
+
+% Temporary overrides
+% TECH_REPLICATES = 2;
+% PLATE_COLUMNS = 1;
+% GROUP_TITLES = {'Group 1'};
 
 % For convenience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
@@ -80,28 +108,35 @@ workingdir = [uigetdir(), '/']; % Prompts user for input directory
 disp('Choose output directory')
 exportdir = [uigetdir(), '/']; % Prompts user for output directory
 listing = dir(strcat(workingdir, '*.CZI'));
-num_images = length(listing);
+numImages = length(listing);
+
+% Validate configuration values.
+if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
+    error(['Mismatch between expected '...
+        num2str(length(GROUP_TITLES) * TECH_REPLICATES)...
+        ' and found ' num2str(numImages) ' number of images!']);
+end
 
 % Initialize cell variable for all data.
-outputHeaders = {'Run', 'Filename', 'Well #', 'Group #', '# Cells',...
+outputHeaders = {'Run', 'Filename', 'Well #', 'Group #', 'Group', '# Cells',...
     'Gal8 sum', 'Gal8/cell', '# Foci', '# Foci/cell', 'NP signal sum',...
     '# NPs', '# NPs/cell', 'Gal8-NP correlation coefficient',...
     'Overlap of Gal8 onto NPs', 'Overlap of NPs onto Gal8',...
     'Fraction Gal8 channel overlapping with NPs',...
     'Fraction NP channel overlapping with Gal8'};
-outputArray = cell(num_images + 1, length(outputHeaders));
-outputArray(1,:) = outputHeaders;
+outputArray = cell(numImages, length(outputHeaders));
 
-for j = 1:num_images % Iterate over all images.
+for i = 1:numImages % Iterate over all images.
     % Select the jth image
-    title = listing(j,1).name(1:end-4);
-    currfile = strcat(workingdir, listing(j,1).name);
-    fn = listing(j,1).name;
+    title = listing(i,1).name(1:end-4);
+    currfile = strcat(workingdir, listing(i,1).name);
+    fn = listing(i,1).name;
     % Extract the well number from the filename.
     wellNum = extractBetween(fn, '(', ')');
     wellNum = str2double(wellNum{1});
-    groupNum = 10 * fix(wellNum / (PLATE_COLUMNS * TECH_REPLICATES))...
-        + rem(wellNum, PLATE_COLUMNS);
+    groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
+        / (PLATE_COLUMNS * TECH_REPLICATES))...
+        + rem((wellNum - 1), PLATE_COLUMNS) + 1;
     
     
     % Load the image.
@@ -151,7 +186,8 @@ for j = 1:num_images % Iterate over all images.
     
     % Save the results in the output array.
     clc;
-    outputArray(j+1,:) = {RUN, title, wellNum, groupNum, numNuclei,...
+    outputArray(i,:) = {RUN, title, wellNum, groupNum,...
+        GROUP_TITLES{groupNum}, numNuclei,...
         gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
         double(numFoci)/double(numNuclei), NPSum, numNPs,...
         double(numNPs)/double(numNuclei), rP, rch1,...
@@ -167,23 +203,32 @@ for j = 1:num_images % Iterate over all images.
     if EXPORT_GAL8_ANNOTATIONS
         gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
             imdilate(gal8BinaryClean, se8));
-        gal8Circled = cat(3, gal8Circles.*2^16, gal8Thresh.*100, nucThresh.*50);
+        gal8Circled = cat(3, gal8Circles.*2^16,...
+            gal8Thresh.*GAL8_BRIGHTEN, nucThresh.*NUC_BRIGHTEN);
         imwrite(gal8Circled, strcat(...
             exportbase, 'composite_Gal8_circled', '.png'), FILETYPE);
     end
     if EXPORT_NP_ANNOTATIONS
         NPCircles = xor(imdilate(NPBinaryClean, se10),...
             imdilate(NPBinaryClean, se8));
-        NPCircled = cat(3, NPThresh.*100, NPCircles.*2^16, nucThresh.*50);
+        NPCircled = cat(3, NPThresh.*NP_BRIGHTEN, NPCircles.*2^16,...
+            nucThresh.*NUC_BRIGHTEN);
         imwrite(NPCircled, strcat(...
             exportbase, 'composite_NP_circled', '.png'), FILETYPE);
     end
     if EXPORT_COMPOSITE
         % Generate output composite images
-        comp = cat(3, NPThresh.*100, gal8Thresh.*100, nucThresh.*50);
+        comp = cat(3, NPThresh.*NP_BRIGHTEN, gal8Thresh.*GAL8_BRIGHTEN,...
+            nucThresh.*NUC_BRIGHTEN);
         imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
     end
 end
 
 % Export an Excel sheet of your data
-writetable(cell2table(outputArray),strcat(exportdir,'EE_disruption_uptake_CZI_output.xlsx')); 
+exportFilename = strcat(exportdir,'EE_disruption_uptake_CZI_output.xlsx');
+writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
+    exportFilename);
+for i = 1:length(outputHeaders)
+    exportGroupedData(outputHeaders{i}, outputArray(:, i),...
+        GROUP_TITLES, exportFilename, i + 1);
+end
