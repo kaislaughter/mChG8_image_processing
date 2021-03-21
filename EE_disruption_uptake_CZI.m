@@ -127,6 +127,7 @@ outputHeaders = {'Run', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',...
 outputArray = cell(numImages, length(outputHeaders));
 
 for i = 1:numImages % Iterate over all images.
+    clc;
     % Select the jth image
     title = listing(i,1).name(1:end-4);
     currfile = strcat(workingdir, listing(i,1).name);
@@ -151,6 +152,7 @@ for i = 1:numImages % Iterate over all images.
     uptake = series1{3, 1}; % Cy5 (or DiD) image is the third channel.
     
     % Identify gal8 foci.
+    disp('Identifying Gal8 foci...');
     fociCells = identifyFoci(gal8, SE_GAL8_TH, SE_GAL8_OP);
     numFoci = fociCells{1};
     gal8Thresh = fociCells{2};
@@ -160,6 +162,7 @@ for i = 1:numImages % Iterate over all images.
     gal8Sum = sum(gal8Thresh, 'all');
     
     % Identify endocytosed NPs.
+    disp('Identifying endocytosed NPs...');
     NPCells = identifyFoci(uptake, SE_NP_TH, SE_NP_OP);
     numNPs = NPCells{1};
     NPThresh = NPCells{2};
@@ -169,6 +172,7 @@ for i = 1:numImages % Iterate over all images.
     NPSum = sum(NPThresh, 'all');
     
     % Identify nuclei.
+    disp('Identifying nuclei...');
     nucCells = identifyNuclei(nuc, SE_NUC_OP);
     numNuclei = nucCells{1};
     nucThresh = nucCells{2};
@@ -176,6 +180,7 @@ for i = 1:numImages % Iterate over all images.
     nucLabels = nucCells{4};
     
     % Calculate correlation between gal8 foci and NPs.
+    disp('Calculating colocalization of Gal8 and NPs...');
     mandersCells = Manders_ED(gal8Thresh, NPThresh);
     rP = mandersCells{1};
     rOverlap = mandersCells{2};
@@ -185,22 +190,24 @@ for i = 1:numImages % Iterate over all images.
     ch2Overlap = mandersCells{6};
     
     % Save the results in the output array.
-    clc;
     outputArray(i,:) = {RUN, groupNum, wellNum, title,...
         GROUP_TITLES{groupNum}, numNuclei,...
         gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
         double(numFoci)/double(numNuclei), NPSum, numNPs,...
         double(numNPs)/double(numNuclei), rP, rch1,...
-        rch2, ch1Overlap, ch2Overlap}
+        rch2, ch1Overlap, ch2Overlap};
+    disp(outputArray(1:i,:));
       
     % Export the specified images.
     exportbase = strcat(exportdir, title, '_', RUN, '_');
     if EXPORT_NUC_MAP
         % Generate and save "sanity check" rainbow map for nuclei.
+        disp('Exporting nuclei map...');
         nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
         imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), FILETYPE);
     end
     if EXPORT_GAL8_ANNOTATIONS
+        disp('Exporting Gal8 annotations...');
         gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
             imdilate(gal8BinaryClean, se8));
         gal8Circled = cat(3, gal8Circles.*2^16,...
@@ -209,6 +216,7 @@ for i = 1:numImages % Iterate over all images.
             exportbase, 'composite_Gal8_circled', '.png'), FILETYPE);
     end
     if EXPORT_NP_ANNOTATIONS
+        disp('Exporting NP annotations...');
         NPCircles = xor(imdilate(NPBinaryClean, se10),...
             imdilate(NPBinaryClean, se8));
         NPCircled = cat(3, NPThresh.*NP_BRIGHTEN, NPCircles.*2^16,...
@@ -218,6 +226,7 @@ for i = 1:numImages % Iterate over all images.
     end
     if EXPORT_COMPOSITE
         % Generate output composite images
+        disp('Exporting composite image...');
         comp = cat(3, NPThresh.*NP_BRIGHTEN, gal8Thresh.*GAL8_BRIGHTEN,...
             nucThresh.*NUC_BRIGHTEN);
         imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
@@ -233,3 +242,4 @@ for i = 1:length(outputHeaders)
     exportGroupedData(outputHeaders{i}, outputArray(:, i),...
         GROUP_TITLES, exportFilename, i + 1);
 end
+disp('Finished processing!');
