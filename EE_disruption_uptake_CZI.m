@@ -28,34 +28,59 @@
 % with 16 bit data. Original script used images that were 2048 px squared
 % with a 20x objective, so if you use larger or smaller images or higher
 % mag objectives, you will likely need to edit this.
-
-% You *must* edit the workingdir and exportdir variables for this code to
-% work. You will need to edit the following variables to fit your data:
-% galectin8_threshold, nuclear_threshold, These and other parts of code
-% that may need to be modified are tagged with "% EditHere" comments which
-% can be easily found with Control-F text search
-
-clc, clear, clear all;
-display('Choose input directory')
-workingdir=[uigetdir(),'/']; % Prompts user for input directory
-display('Choose output directory')
-exportdir=[uigetdir(),'/']; % Prompts user for output directory
-filetype='png';
-listing=dir(strcat(workingdir,'*.CZI'));
+clc, clear;
+warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 
 %% Parameters
-debug=0;
-
 % The Run number is used to track multiple runs of the software, and is used in
 % export file names and in the DataCells array. Note: it is a character
 % array / string!
-run='1'; 
+RUN = '1';
 
-%erosiondisk=strel('disk', 10); % EditHere
-%analysisdisk=strel('disk', 20); % EditHere
-%tophatdisk=strel('disk',30); % EditHere
+% Choose which images will be exported and in what format.
+FILETYPE = 'png';
+EXPORT_NUC_MAP = false;
+EXPORT_GAL8_ANNOTATIONS = true;
+EXPORT_NP_ANNOTATIONS = true;
+EXPORT_COMPOSITE = true;
+GAL8_BRIGHTEN = 100;  % Signal multiplier for display.
+NP_BRIGHTEN = 100;  % Signal multiplier for display.
+NUC_BRIGHTEN = 50;  % Signal multiplier for display.
 
-% For conveience, a number of sizes of disk shaped structural elements are
+% Define technical replicates and plate size. The script assumes technical
+% replicates are placed in the same column.
+% Note that these values are for annotation purposes only; not configuring
+% them will not affect quantification in any way.
+TECH_REPLICATES = 3;
+PLATE_COLUMNS = 10;
+GROUP_TITLES = {...
+    'Group 1',...
+    'Group 2',...
+    'Group 3',...
+    'Group 4',...
+    'Group 5',...
+    'Group 6',...
+    'Group 7',...
+    'Group 8',...
+    'Group 9',...
+    'Group 10',...
+    'Group 11',...
+    'Group 12',...
+    'Group 13',...
+    'Group 14',...
+    'Group 15',...
+    'Group 16',...
+    'Group 17',...
+    'Group 18',...
+    'Group 19',...
+    'Group 20'};
+
+% Temporary overrides
+% TECH_REPLICATES = 2;
+% PLATE_COLUMNS = 1;
+% GROUP_TITLES = {'Group 1'};
+
+% For convenience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
 se1=strel('disk',1);
 se2=strel('disk',2);
@@ -70,107 +95,152 @@ se10=strel('disk',10);
 se25=strel('disk',25);
 se100=strel('disk',100);
 
-% These are values of Gal8 and Nuclear stain above background. 
-galectin8_threshold=100;
-nuclear_threshold=400;
-uptake_threshold=80;
-
 % Define structural elements to be used in processing images
-se_gal8th = se25; % Gal8 tophat
-se_gal8op = se3; % Gal8 open
-se_nucop = se25; % Nucleus open
-se_uptaketh = se25; % Uptake tophat
-se_uptakeop = se3; % Uptake open
+SE_GAL8_TH = se10; % Gal8 tophat
+SE_GAL8_OP = se3; % Gal8 open
+SE_NUC_OP = se25; % Nucleus open
+SE_NP_TH = se10; % Uptake tophat
+SE_NP_OP = se3; % Uptake open
 
 %% Analysis
-DataCells = [{'Run'},{'Well'},{'# Cells'},{'Gal8 sum'},{'Gal8/cell'},...
-    {'# Foci'},{'# Foci/cell'},{'Cy5 sum'},{'# NPs'},{'# NPs/cell'}]; 
-    % Initializes cell variable for all data
+disp('Choose input directory')
+workingdir = [uigetdir(), '/']; % Prompts user for input directory
+disp('Choose output directory')
+exportdir = [uigetdir(), '/']; % Prompts user for output directory
+listing = dir(strcat(workingdir, '*.CZI'));
+numImages = length(listing);
 
-    % The next few lines are specific to CZI images. Edit from here
-    % if you have alternate arrangements. 
-
-for j=1:length(listing) % all images
-    
-    currfile=strcat(workingdir,listing(j,1).name); % defines current file
-  
-    data = bfopen(currfile); % opens image using Bio-Formats
-    series1 = data{1,1}; % stores the first image of the stack as series1
-
-    gal8 = series1{1, 1}; % Gal-8 image is the first channel
-    nuc = series1{2, 1}; % Nuclei image is the second channel
-    uptake = series1{3, 1}; % Cy5 (or DiD) image is the third channel
-    
-    gal8_bg = mode(gal8,'all');
-    nuc_bg = mode(nuc,'all');
-    uptake_bg = mode(uptake,'all');
-    
-    fname = currfile; % sets fname to current file
-    well=listing(j,1).name(1:end-4)
-    
-    % Notably, at this point, you should have your nuclear image living
-    % within "nuc" and your gal8 image living within "gal8"
-    
-    gal8th=imtophat(gal8,se_gal8th); % Clean image with tophat filter for thresholding 
-    gal8pos1=gal8th>galectin8_threshold; % threshold image
-    gal8pos2=imopen(gal8pos1,se_gal8op); % open thresholded image
-    circlelayer=xor(imdilate(gal8pos2,se10),imdilate(gal8pos2,se8));
-    % Create circle layer for circled ouptut images
-    
-    uptaketh=imtophat(uptake,se_uptaketh); % Clean image with tophat filter for thresholding 
-    uptakepos1=uptaketh>uptake_threshold; % threshold image
-    uptakepos2=imopen(uptakepos1,se_uptakeop); % open thresholded image
-    
-    % Generate output composite images
-    comp=cat(3,(uptake-uptake_bg).*100,(gal8-gal8_bg).*100,(nuc-nuc_bg).*50);
-    circled=cat(3,circlelayer.*2^16,gal8.*100-2e4,nuc.*50);
-    
-    % Count foci
-    basinmap2=watershed(~gal8pos2); % watershed to count foci
-    %fociarea=imdilate(gal8pos2,se1);
-    fociarea=gal8pos2;
-    focimap=basinmap2; 
-    focimap(~fociarea)=0;
-    focimapc=(label2rgb(focimap,'jet','w','shuffle')); % rainbow map of foci
-    numfoci=max(focimap(:)); % stores count of foci
-    
-    % Count particles taken up
-    basinmap3=watershed(~uptakepos2); % watershed to count foci
-    %fociarea=imdilate(gal8pos2,se1);
-    nparea=uptakepos2;
-    npmap=basinmap3; 
-    npmap(~nparea)=0;
-    npmapc=(label2rgb(npmap,'jet','w','shuffle')); % rainbow map of foci
-    numnp=max(npmap(:)); % stores count of foci
-    
-    % Code below counts cell number
-    nthr=nuc>nuclear_threshold; % thresholding
-    nuc1=(imopen(nthr,se_nucop)); % remove small features
-    disttrans=-bwdist(~nuc1); % distance transform
-    mask=imextendedmin(disttrans,2); % removes noise from distance transform
-    disttrans2=imimposemin(disttrans,mask);
-    basinmap=watershed(disttrans2); % watershed to count nuclei
-    cellarea=imdilate(nuc1, se3); % dilates image for output 
-    cellmap=basinmap;
-    cellmap(~cellarea)=0;
-    nucmap=(label2rgb(cellmap,'jet','w','shuffle')); %Generates "sanity check" rainbow map
-    
-    % Integrates Cy5 channel for uptake
-    cy5int = sum(sum(uptake));
-
-    % measurement
-    numcell=max(cellmap(:)); % stores nuclei count as numcell
-    galsum=sum(gal8(gal8pos2)); %Integrate Gal8 pixel intensities within gal8pos2 mask
-    DataCells=[DataCells;{run},{well},{numcell},{galsum},{uint64(galsum)...
-        /uint64(numcell)},{numfoci},{double(numfoci)/double(numcell)},...
-        {cy5int},{numnp},{double(numnp)/double(numcell)}]
-      
-    %begin exports
-    exportbase=strcat(exportdir,well,'_',run,'_');
-    %imwrite(nucmap,strcat(exportbase,'nucmap','.png'),'png');
-    %imwrite(circled,strcat(exportbase,'composite_circled','.png'),'png');
-    imwrite(comp,strcat(exportbase,'composite','.png'),'png');
-    
+% Validate configuration values.
+if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
+    error(['Mismatch between expected '...
+        num2str(length(GROUP_TITLES) * TECH_REPLICATES)...
+        ' and found ' num2str(numImages) ' number of images!']);
 end
-writetable(cell2table(DataCells),strcat(exportdir,'Output.xlsx')); 
-% Exports an csv sheet of your data
+
+% Initialize cell variable for all data.
+outputHeaders = {'Run #', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',...
+    'Gal8 sum', 'Gal8/cell', '# Foci', '# Foci/cell', 'NP signal sum',...
+    '# NPs', '# NPs/cell', 'Gal8-NP correlation coefficient',...
+    'Overlap of Gal8 onto NPs', 'Overlap of NPs onto Gal8',...
+    'Fraction Gal8 channel overlapping with NPs',...
+    'Fraction NP channel overlapping with Gal8'};
+outputArray = cell(numImages, length(outputHeaders));
+
+for i = 1:numImages % Iterate over all images.
+    clc;
+    % Select the jth image
+    title = listing(i,1).name(1:end-4);
+    currfile = strcat(workingdir, listing(i,1).name);
+    fn = listing(i,1).name;
+    % Extract the well number from the filename.
+    wellNum = extractBetween(fn, '(', ')');
+    wellNum = str2double(wellNum{1});
+    groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
+        / (PLATE_COLUMNS * TECH_REPLICATES))...
+        + rem((wellNum - 1), PLATE_COLUMNS) + 1;
+    if i == 1
+        % Get the base run name that all images are based on.
+        runName = extractBefore(fn, '(');
+    end
+    
+    % Load the image.
+    % Note that Bio-Formats toolbox must be downloaded and placed in the
+    % working directory or MATLAB path.
+    data = bfopen(currfile);
+    % The image is opened as a stack so just take the first one.
+    series1 = data{1, 1};
+    % Split the multi-channel image into its three components.
+    gal8 = series1{1, 1}; % Gal-8 image is the first channel.
+    nuc = series1{2, 1}; % Nuclei image is the second channel.
+    uptake = series1{3, 1}; % Cy5 (or DiD) image is the third channel.
+    
+    % Identify gal8 foci.
+    disp('Identifying Gal8 foci...');
+    fociCells = identifyFoci(gal8, SE_GAL8_TH, SE_GAL8_OP);
+    numFoci = fociCells{1};
+    gal8Thresh = fociCells{2};
+    gal8BinaryClean = fociCells{3};
+    gal8Labels = fociCells{4};
+    gal8Sum = sum(gal8Thresh, 'all');
+    
+    % Identify endocytosed NPs.
+    disp('Identifying endocytosed NPs...');
+    NPCells = identifyFoci(uptake, SE_NP_TH, SE_NP_OP);
+    numNPs = NPCells{1};
+    NPThresh = NPCells{2};
+    NPBinaryClean = NPCells{3};
+    NPLabels = NPCells{4};
+    NPSum = sum(NPThresh, 'all');
+    
+    % Identify nuclei.
+    disp('Identifying nuclei...');
+    nucCells = identifyNuclei(nuc, SE_NUC_OP);
+    numNuclei = nucCells{1};
+    nucThresh = nucCells{2};
+    nucBinaryClean = nucCells{3};
+    nucLabels = nucCells{4};
+    
+    % Calculate correlation between gal8 foci and NPs.
+    disp('Calculating colocalization of Gal8 and NPs...');
+    mandersCells = Manders_ED(gal8Thresh, NPThresh);
+    rP = mandersCells{1};
+    rOverlap = mandersCells{2};
+    rch1 = mandersCells{3};
+    rch2 = mandersCells{4};
+    ch1Overlap = mandersCells{5};
+    ch2Overlap = mandersCells{6};
+    
+    % Save the results in the output array.
+    outputArray(i,:) = {RUN, groupNum, wellNum, title,...
+        GROUP_TITLES{groupNum}, numNuclei,...
+        gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
+        double(numFoci)/double(numNuclei), NPSum, double(numNPs),...
+        double(numNPs)/double(numNuclei), rP, rch1,...
+        rch2, ch1Overlap, ch2Overlap};
+    disp(outputArray(1:i,:));
+      
+    % Export the specified images.
+    exportbase = strcat(exportdir, title, '_', RUN, '_');
+    if EXPORT_NUC_MAP
+        % Generate and save "sanity check" rainbow map for nuclei.
+        disp('Exporting nuclei map...');
+        nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
+        imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), FILETYPE);
+    end
+    if EXPORT_GAL8_ANNOTATIONS
+        disp('Exporting Gal8 annotations...');
+        gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
+            imdilate(gal8BinaryClean, se8));
+        gal8Circled = cat(3, gal8Circles.*2^16,...
+            gal8Thresh.*GAL8_BRIGHTEN, nucThresh.*NUC_BRIGHTEN);
+        imwrite(gal8Circled, strcat(...
+            exportbase, 'composite_Gal8_circled', '.png'), FILETYPE);
+    end
+    if EXPORT_NP_ANNOTATIONS
+        disp('Exporting NP annotations...');
+        NPCircles = xor(imdilate(NPBinaryClean, se10),...
+            imdilate(NPBinaryClean, se8));
+        NPCircled = cat(3, NPThresh.*NP_BRIGHTEN, NPCircles.*2^16,...
+            nucThresh.*NUC_BRIGHTEN);
+        imwrite(NPCircled, strcat(...
+            exportbase, 'composite_NP_circled', '.png'), FILETYPE);
+    end
+    if EXPORT_COMPOSITE
+        % Generate output composite images
+        disp('Exporting composite image...');
+        comp = cat(3, NPThresh.*NP_BRIGHTEN, gal8Thresh.*GAL8_BRIGHTEN,...
+            nucThresh.*NUC_BRIGHTEN);
+        imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
+    end
+end
+
+% Export an Excel sheet of your data
+exportFilename = strcat(exportdir,runName,'_Output.xlsx');
+outputArray = sortrows(outputArray, [1, 2, 3]);
+writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
+    exportFilename);
+for i = 1:length(outputHeaders)
+    exportGroupedData(outputHeaders{i}, outputArray(:, i),...
+        GROUP_TITLES, exportFilename, i + 1);
+end
+disp('Finished processing!');
