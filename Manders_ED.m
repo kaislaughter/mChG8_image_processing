@@ -4,8 +4,8 @@ function [dataCells] = Manders_ED(ch1, ch2)
 %   Both ch1 and ch2 should already be background-subtracted, for example
 %   using a top hat filter.
 products = (double(ch1).*double(ch2));
-ch1sq = ch1.^2;
-ch2sq = ch2.^2;
+ch1sq = double(ch1).^2;
+ch2sq = double(ch2).^2;
 
 % Calculate coefficients
 rP = corr2(ch1, ch2);

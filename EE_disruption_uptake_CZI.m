@@ -118,7 +118,7 @@ if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
 end
 
 % Initialize cell variable for all data.
-outputHeaders = {'Run', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',...
+outputHeaders = {'Run #', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',...
     'Gal8 sum', 'Gal8/cell', '# Foci', '# Foci/cell', 'NP signal sum',...
     '# NPs', '# NPs/cell', 'Gal8-NP correlation coefficient',...
     'Overlap of Gal8 onto NPs', 'Overlap of NPs onto Gal8',...
@@ -138,7 +138,10 @@ for i = 1:numImages % Iterate over all images.
     groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
         / (PLATE_COLUMNS * TECH_REPLICATES))...
         + rem((wellNum - 1), PLATE_COLUMNS) + 1;
-    
+    if i == 1
+        % Get the base run name that all images are based on.
+        runName = extractBefore(fn, '(');
+    end
     
     % Load the image.
     % Note that Bio-Formats toolbox must be downloaded and placed in the
@@ -158,7 +161,6 @@ for i = 1:numImages % Iterate over all images.
     gal8Thresh = fociCells{2};
     gal8BinaryClean = fociCells{3};
     gal8Labels = fociCells{4};
-    focimapc=(label2rgb(gal8Labels, 'jet', 'w', 'shuffle')); % rainbow map of foci
     gal8Sum = sum(gal8Thresh, 'all');
     
     % Identify endocytosed NPs.
@@ -168,7 +170,6 @@ for i = 1:numImages % Iterate over all images.
     NPThresh = NPCells{2};
     NPBinaryClean = NPCells{3};
     NPLabels = NPCells{4};
-    npmapc=(label2rgb(NPLabels, 'jet', 'w', 'shuffle')); % rainbow map of foci
     NPSum = sum(NPThresh, 'all');
     
     % Identify nuclei.
@@ -193,7 +194,7 @@ for i = 1:numImages % Iterate over all images.
     outputArray(i,:) = {RUN, groupNum, wellNum, title,...
         GROUP_TITLES{groupNum}, numNuclei,...
         gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
-        double(numFoci)/double(numNuclei), NPSum, numNPs,...
+        double(numFoci)/double(numNuclei), NPSum, double(numNPs),...
         double(numNPs)/double(numNuclei), rP, rch1,...
         rch2, ch1Overlap, ch2Overlap};
     disp(outputArray(1:i,:));
@@ -234,7 +235,7 @@ for i = 1:numImages % Iterate over all images.
 end
 
 % Export an Excel sheet of your data
-exportFilename = strcat(exportdir,'EE_disruption_uptake_CZI_output.xlsx');
+exportFilename = strcat(exportdir,runName,'_Output.xlsx');
 outputArray = sortrows(outputArray, [1, 2, 3]);
 writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
     exportFilename);
