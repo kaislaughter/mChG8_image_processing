@@ -76,9 +76,9 @@ GROUP_TITLES = {...
     'Group 20'};
 
 % Temporary overrides
-% TECH_REPLICATES = 2;
-% PLATE_COLUMNS = 1;
-% GROUP_TITLES = {'Group 1'};
+ TECH_REPLICATES = 1;
+ PLATE_COLUMNS = 1;
+ GROUP_TITLES = {'Group 1'};
 
 % For convenience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
@@ -123,7 +123,7 @@ outputHeaders = {'Run #', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',..
     '# NPs', '# NPs/cell', 'Gal8-NP correlation coefficient',...
     'Overlap of Gal8 onto NPs', 'Overlap of NPs onto Gal8',...
     'Fraction Gal8 channel overlapping with NPs',...
-    'Fraction NP channel overlapping with Gal8'};
+    'Fraction NP channel overlapping with Gal8','# Binary foci overlap'};
 outputArray = cell(numImages, length(outputHeaders));
 
 for i = 1:numImages % Iterate over all images.
@@ -138,6 +138,7 @@ for i = 1:numImages % Iterate over all images.
     groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
         / (PLATE_COLUMNS * TECH_REPLICATES))...
         + rem((wellNum - 1), PLATE_COLUMNS) + 1;
+    groupNum = 1;
     if i == 1
         % Get the base run name that all images are based on.
         runName = extractBefore(fn, '(');
@@ -190,13 +191,20 @@ for i = 1:numImages % Iterate over all images.
     ch1Overlap = mandersCells{5};
     ch2Overlap = mandersCells{6};
     
+    % Identify number of overlapping regions from binary images
+    basinmap4=watershed(~(gal8BinaryClean & NPBinaryClean));
+    overlapArea=gal8BinaryClean & NPBinaryClean;
+    overlapMap=basinmap4;
+    overlapMap(~overlapArea)=0;
+    numoverlap = max(overlapMap(:));
+    
     % Save the results in the output array.
     outputArray(i,:) = {RUN, groupNum, wellNum, title,...
         GROUP_TITLES{groupNum}, numNuclei,...
         gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
         double(numFoci)/double(numNuclei), NPSum, double(numNPs),...
         double(numNPs)/double(numNuclei), rP, rch1,...
-        rch2, ch1Overlap, ch2Overlap};
+        rch2, ch1Overlap, ch2Overlap, numoverlap};
     disp(outputArray(1:i,:));
       
     % Export the specified images.
