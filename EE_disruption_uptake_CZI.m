@@ -47,13 +47,22 @@ GAL8_BRIGHTEN = 100;  % Signal multiplier for display.
 NP_BRIGHTEN = 100;  % Signal multiplier for display.
 NUC_BRIGHTEN = 50;  % Signal multiplier for display.
 
+% Suppress sorting to test individual images
+TEST_MODE = true;
+
 % Define technical replicates and plate size. The script assumes technical
 % replicates are placed in the same column.
 % Note that these values are for annotation purposes only; not configuring
 % them will not affect quantification in any way.
-TECH_REPLICATES = 3;
-PLATE_COLUMNS = 10;
-GROUP_TITLES = {...
+
+if TEST_MODE
+    TECH_REPLICATES = 1;
+    PLATE_COLUMNS = 1;
+    GROUP_TITLES = {'Group 1'};
+else
+    TECH_REPLICATES = 3;
+    PLATE_COLUMNS = 10;
+    GROUP_TITLES = {...
     'Group 1',...
     'Group 2',...
     'Group 3',...
@@ -74,11 +83,7 @@ GROUP_TITLES = {...
     'Group 18',...
     'Group 19',...
     'Group 20'};
-
-% Temporary overrides
- TECH_REPLICATES = 1;
- PLATE_COLUMNS = 1;
- GROUP_TITLES = {'Group 1'};
+end
 
 % For convenience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
@@ -111,10 +116,12 @@ listing = dir(strcat(workingdir, '*.CZI'));
 numImages = length(listing);
 
 % Validate configuration values.
-if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
-    error(['Mismatch between expected '...
-        num2str(length(GROUP_TITLES) * TECH_REPLICATES)...
-        ' and found ' num2str(numImages) ' number of images!']);
+if ~TEST_MODE
+    if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
+        error(['Mismatch between expected '...
+            num2str(length(GROUP_TITLES) * TECH_REPLICATES)...
+            ' and found ' num2str(numImages) ' number of images!']);
+    end
 end
 
 % Initialize cell variable for all data.
@@ -132,13 +139,19 @@ for i = 1:numImages % Iterate over all images.
     title = listing(i,1).name(1:end-4);
     currfile = strcat(workingdir, listing(i,1).name);
     fn = listing(i,1).name;
-    % Extract the well number from the filename.
-    wellNum = extractBetween(fn, '(', ')');
-    wellNum = str2double(wellNum{1});
-    groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
-        / (PLATE_COLUMNS * TECH_REPLICATES))...
-        + rem((wellNum - 1), PLATE_COLUMNS) + 1;
-    groupNum = 1;
+    
+    if TEST_MODE
+        groupNum = 1;
+        wellNum = 1;
+    else
+        % Extract the well number from the filename.
+        wellNum = extractBetween(fn, '(', ')');
+        wellNum = str2double(wellNum{1});
+        groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
+            / (PLATE_COLUMNS * TECH_REPLICATES))...
+            + rem((wellNum - 1), PLATE_COLUMNS) + 1;
+    end
+    
     if i == 1
         % Get the base run name that all images are based on.
         runName = extractBefore(fn, '(');
@@ -244,7 +257,9 @@ end
 
 % Export an Excel sheet of your data
 exportFilename = strcat(exportdir,runName,'_Output.xlsx');
-outputArray = sortrows(outputArray, [1, 2, 3]);
+if ~TEST_MODE 
+    outputArray = sortrows(outputArray, [1, 2, 3]);
+end
 writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
     exportFilename);
 for i = 1:length(outputHeaders)
