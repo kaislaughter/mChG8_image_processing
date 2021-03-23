@@ -28,7 +28,7 @@
 % with 16 bit data. Original script used images that were 2048 px squared
 % with a 20x objective, so if you use larger or smaller images or higher
 % mag objectives, you will likely need to edit this.
-clc, clear;
+clc, clear, close all;
 warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 
 %% Parameters
@@ -42,13 +42,21 @@ FILETYPE = 'png';
 EXPORT_NUC_MAP = false;
 EXPORT_GAL8_ANNOTATIONS = true;
 EXPORT_NP_ANNOTATIONS = true;
+EXPORT_OVERLAP_ANNOTATIONS = true;
 EXPORT_COMPOSITE = true;
-GAL8_BRIGHTEN = 100;  % Signal multiplier for display.
-NP_BRIGHTEN = 100;  % Signal multiplier for display.
-NUC_BRIGHTEN = 50;  % Signal multiplier for display.
+EXPORT_CORRELATION_PLOTS = true;
+GAL8_BRIGHTEN = 150;  % Signal multiplier for display only.
+NP_BRIGHTEN = 100;  % Signal multiplier for display only.
+NUC_BRIGHTEN = 50;  % Signal multiplier for display only.
+
+% Define thresholds and correction factors for image processing
+GAL8_THRESHOLD = 50;
+NP_THRESHOLD = 40;
+GAL8_NP_CROSSTALK = 0.27;
+NP_GAL8_CROSSTALK = 0.01;
 
 % Suppress sorting to test individual images
-TEST_MODE = true;
+TEST_MODE = false;
 
 % Define technical replicates and plate size. The script assumes technical
 % replicates are placed in the same column.
@@ -87,25 +95,26 @@ end
 
 % For convenience, a number of sizes of disk shaped structural elements are
 % generated for data exploration.
-se1=strel('disk',1);
-se2=strel('disk',2);
-se3=strel('disk',3);
-se4=strel('disk',4);
-se5=strel('disk',5);
-se6=strel('disk',6);
-se7=strel('disk',7);
-se8=strel('disk',8);
-se9=strel('disk',9);
-se10=strel('disk',10);
-se25=strel('disk',25);
-se100=strel('disk',100);
+se1 = strel('disk',1);
+se2 = strel('disk',2);
+se3 = strel('disk',3);
+se4 = strel('disk',4);
+se5 = strel('disk',5);
+se6 = strel('disk',6);
+se7 = strel('disk',7);
+se8 = strel('disk',8);
+se9 = strel('disk',9);
+se10 = strel('disk',10);
+se20 = strel('disk', 20);
+se25 = strel('disk',25);
+se100 = strel('disk',100);
 
 % Define structural elements to be used in processing images
-SE_GAL8_TH = se10; % Gal8 tophat
-SE_GAL8_OP = se3; % Gal8 open
+SE_GAL8_TH = se20; % Gal8 tophat
+SE_GAL8_OP = se2; % Gal8 open
 SE_NUC_OP = se25; % Nucleus open
-SE_NP_TH = se10; % Uptake tophat
-SE_NP_OP = se3; % Uptake open
+SE_NP_TH = se20; % Uptake tophat
+SE_NP_OP = se2; % Uptake open
 
 %% Analysis
 disp('Choose input directory')
@@ -128,15 +137,16 @@ end
 outputHeaders = {'Run #', 'Group #', 'Well #', 'Filename', 'Group', '# Cells',...
     'Gal8 sum', 'Gal8/cell', '# Foci', '# Foci/cell', 'NP signal sum',...
     '# NPs', '# NPs/cell', 'Gal8-NP correlation coefficient',...
-    'Overlap of Gal8 onto NPs', 'Overlap of NPs onto Gal8',...
+    'Manders overlap coefficient',...
     'Fraction Gal8 channel overlapping with NPs',...
-    'Fraction NP channel overlapping with Gal8','# Binary foci overlap'};
+    'Fraction NP channel overlapping with Gal8', '# Binary foci overlap'};
 outputArray = cell(numImages, length(outputHeaders));
+figureArray = zeros(numImages, 1);
 
 for i = 1:numImages % Iterate over all images.
     clc;
     % Select the jth image
-    title = listing(i,1).name(1:end-4);
+    imageTitle = listing(i,1).name(1:end-4);
     currfile = strcat(workingdir, listing(i,1).name);
     fn = listing(i,1).name;
     
@@ -168,22 +178,29 @@ for i = 1:numImages % Iterate over all images.
     nuc = series1{2, 1}; % Nuclei image is the second channel.
     uptake = series1{3, 1}; % Cy5 (or DiD) image is the third channel.
     
+    % Clean up images.
+    gal8TH = imtophat(gal8, SE_GAL8_TH);
+    NPTH = imtophat(uptake, SE_NP_TH);
+    gal8Corr = gal8TH - NP_GAL8_CROSSTALK * NPTH;
+    NPCorr = NPTH - GAL8_NP_CROSSTALK * gal8TH;
+    
     % Identify gal8 foci.
     disp('Identifying Gal8 foci...');
-    fociCells = identifyFoci(gal8, SE_GAL8_TH, SE_GAL8_OP);
-    numFoci = fociCells{1};
-    gal8Thresh = fociCells{2};
-    gal8BinaryClean = fociCells{3};
-    gal8Labels = fociCells{4};
+    fociResults = identifyFoci(gal8Corr, GAL8_THRESHOLD, SE_GAL8_OP);
+    numFoci = fociResults{1};
+    gal8Thresh = fociResults{2};
+    gal8BinaryClean = fociResults{3};
+    gal8Labels = fociResults{4};
     gal8Sum = sum(gal8Thresh, 'all');
     
     % Identify endocytosed NPs.
     disp('Identifying endocytosed NPs...');
-    NPCells = identifyFoci(uptake, SE_NP_TH, SE_NP_OP);
-    numNPs = NPCells{1};
-    NPThresh = NPCells{2};
-    NPBinaryClean = NPCells{3};
-    NPLabels = NPCells{4};
+    % Correct for some Gal8 fluorescence bleeding into NP channel.
+    NPResults = identifyFoci(NPCorr, NP_THRESHOLD, SE_NP_OP);
+    numNPs = NPResults{1};
+    NPThresh = NPResults{2};
+    NPBinaryClean = NPResults{3};
+    NPLabels = NPResults{4};
     NPSum = sum(NPThresh, 'all');
     
     % Identify nuclei.
@@ -199,29 +216,26 @@ for i = 1:numImages % Iterate over all images.
     mandersCells = Manders_ED(gal8Thresh, NPThresh);
     rP = mandersCells{1};
     rOverlap = mandersCells{2};
-    rch1 = mandersCells{3};
-    rch2 = mandersCells{4};
-    ch1Overlap = mandersCells{5};
-    ch2Overlap = mandersCells{6};
+    MOC = mandersCells{3};
+    ch1Overlap = mandersCells{4};
+    ch2Overlap = mandersCells{5};
     
     % Identify number of overlapping regions from binary images
-    basinmap4=watershed(~(gal8BinaryClean & NPBinaryClean));
-    overlapArea=gal8BinaryClean & NPBinaryClean;
-    overlapMap=basinmap4;
-    overlapMap(~overlapArea)=0;
-    numoverlap = max(overlapMap(:));
+    overlapBinaryClean = gal8BinaryClean & NPBinaryClean;
+    overlapMap = watershed(~overlapBinaryClean);
+    numOverlap = max(overlapMap(:));
     
     % Save the results in the output array.
-    outputArray(i,:) = {RUN, groupNum, wellNum, title,...
+    outputArray(i,:) = {RUN, groupNum, wellNum, imageTitle,...
         GROUP_TITLES{groupNum}, numNuclei,...
         gal8Sum, uint64(gal8Sum) / uint64(numNuclei), numFoci,...
         double(numFoci)/double(numNuclei), NPSum, double(numNPs),...
-        double(numNPs)/double(numNuclei), rP, rch1,...
-        rch2, ch1Overlap, ch2Overlap, numoverlap};
+        double(numNPs)/double(numNuclei), rP, MOC,...
+        ch1Overlap, ch2Overlap, numOverlap};
     disp(outputArray(1:i,:));
       
     % Export the specified images.
-    exportbase = strcat(exportdir, title, '_', RUN, '_');
+    exportbase = strcat(exportdir, imageTitle, '_', RUN, '_');
     if EXPORT_NUC_MAP
         % Generate and save "sanity check" rainbow map for nuclei.
         disp('Exporting nuclei map...');
@@ -246,6 +260,17 @@ for i = 1:numImages % Iterate over all images.
         imwrite(NPCircled, strcat(...
             exportbase, 'composite_NP_circled', '.png'), FILETYPE);
     end
+    if EXPORT_OVERLAP_ANNOTATIONS
+        disp('Exporting colocalization annotations...');
+        overlapCircles = xor(imdilate(overlapBinaryClean, se10),...
+            imdilate(overlapBinaryClean, se8));
+        overlapCircled = cat(3,...
+            NPThresh.*NP_BRIGHTEN + uint16(overlapCircles.*2^16),...
+            gal8Thresh.*GAL8_BRIGHTEN + uint16(overlapCircles.*2^16),...
+            nucThresh.*NUC_BRIGHTEN + uint16(overlapCircles.*2^16));
+        imwrite(overlapCircled, strcat(...
+            exportbase, 'composite_overlap_circled', '.png'), FILETYPE);
+    end
     if EXPORT_COMPOSITE
         % Generate output composite images
         disp('Exporting composite image...');
@@ -253,17 +278,32 @@ for i = 1:numImages % Iterate over all images.
             nucThresh.*NUC_BRIGHTEN);
         imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
     end
+    if EXPORT_CORRELATION_PLOTS
+        % Plot the intensity of Gal8 versus the intensity of NPs.
+        disp('Exporting a correlation plot...');
+        fig = figure(i);
+        scatter(NPCorr(:), gal8Corr(:), '.');
+        xline(NP_THRESHOLD);
+        yline(GAL8_THRESHOLD);
+        xlabel('NP pixel intensity');
+        ylabel('Gal8 pixel intensity');
+        titleStr = [GROUP_TITLES{groupNum} ' (well ' num2str(wellNum) ')'];
+        title(titleStr);
+        saveas(fig, strcat(exportdir, titleStr), FILETYPE);
+    end
 end
 
 % Export an Excel sheet of your data
-exportFilename = strcat(exportdir,runName,'_Output.xlsx');
+disp('Saving results...');
+exportFilename = strcat(exportdir, runName, '_Output');
+exportExcelFile = strcat(exportFilename, '.xlsx');
 if ~TEST_MODE 
     outputArray = sortrows(outputArray, [1, 2, 3]);
 end
 writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
-    exportFilename);
+    exportExcelFile);
 for i = 1:length(outputHeaders)
     exportGroupedData(outputHeaders{i}, outputArray(:, i),...
-        GROUP_TITLES, exportFilename, i + 1);
+        GROUP_TITLES, exportExcelFile, i + 1);
 end
 disp('Finished processing!');
