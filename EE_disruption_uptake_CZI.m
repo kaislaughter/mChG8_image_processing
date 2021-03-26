@@ -37,6 +37,12 @@ warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 % array / string!
 RUN = '1';
 
+% Channel selection.
+% If one channel is not included, set the channel to 0 or false.
+GAL8_CHANNEL = 1;
+NUC_CHANNEL = 2;
+NP_CHANNEL = 3;
+
 % Choose which images will be exported and in what format.
 FILETYPE = 'png';
 EXPORT_NUC_MAP = false;
@@ -188,34 +194,21 @@ for i = 1:numImages % Iterate over all images.
     % The image is opened as a stack so just take the first one.
     series1 = data{1, 1};
     % Split the multi-channel image into its three components.
-    gal8 = series1{1, 1}; % Gal-8 image is the first channel.
-    nuc = series1{2, 1}; % Nuclei image is the second channel.
-    uptake = series1{3, 1}; % Cy5 (or DiD) image is the third channel.
+    nuc = series1{NUC_CHANNEL, 1}; % Nuclei image is the second channel.
+    if GAL8_CHANNEL
+        gal8 = series1{GAL8_CHANNEL, 1};
+        gal8TH = imtophat(gal8, SE_GAL8_TH);
+    end
+    if NP_CHANNEL
+        uptake = series1{NP_CHANNEL, 1};
+        NPTH = imtophat(uptake, SE_NP_TH);
+    end
     
     % Clean up images.
-    gal8TH = imtophat(gal8, SE_GAL8_TH);
-    NPTH = imtophat(uptake, SE_NP_TH);
-    gal8Corr = gal8TH - NP_GAL8_CROSSTALK * NPTH;
-    NPCorr = NPTH - GAL8_NP_CROSSTALK * gal8TH;
-    
-    % Identify gal8 foci.
-    disp('Identifying Gal8 foci...');
-    fociResults = identifyFoci(gal8Corr, GAL8_THRESHOLD, SE_GAL8_OP);
-    numFoci = fociResults{1};
-    gal8Thresh = fociResults{2};
-    gal8BinaryClean = fociResults{3};
-    gal8Labels = fociResults{4};
-    gal8Sum = sum(gal8Thresh, 'all');
-    
-    % Identify endocytosed NPs.
-    disp('Identifying endocytosed NPs...');
-    % Correct for some Gal8 fluorescence bleeding into NP channel.
-    NPResults = identifyFoci(NPCorr, NP_THRESHOLD, SE_NP_OP);
-    numNPs = NPResults{1};
-    NPThresh = NPResults{2};
-    NPBinaryClean = NPResults{3};
-    NPLabels = NPResults{4};
-    NPSum = sum(NPThresh, 'all');
+    if GAL8_CHANNEL && NP_CHANNEL
+        gal8Corr = gal8TH - NP_GAL8_CROSSTALK * NPTH;
+        NPCorr = NPTH - GAL8_NP_CROSSTALK * gal8TH;
+    end
     
     % Identify nuclei.
     disp('Identifying nuclei...');
@@ -225,19 +218,57 @@ for i = 1:numImages % Iterate over all images.
     nucBinaryClean = nucCells{3};
     nucLabels = nucCells{4};
     
+    % Identify gal8 foci.
+    if GAL8_CHANNEL
+        disp('Identifying Gal8 foci...');
+        fociResults = identifyFoci(gal8Corr, GAL8_THRESHOLD, SE_GAL8_OP);
+        numFoci = fociResults{1};
+        gal8Thresh = fociResults{2};
+        gal8BinaryClean = fociResults{3};
+        gal8Labels = fociResults{4};
+        gal8Sum = sum(gal8Thresh, 'all');
+    else
+        numFoci = NaN;
+        gal8Sum = NaN;
+        % Make an empty channel for the composite image.
+        gal8Thresh = zeros(size(nucThresh));
+    end
+    
+    % Identify endocytosed NPs.
+    if NP_CHANNEL
+        disp('Identifying endocytosed NPs...');
+        % Correct for some Gal8 fluorescence bleeding into NP channel.
+        NPResults = identifyFoci(NPCorr, NP_THRESHOLD, SE_NP_OP);
+        numNPs = NPResults{1};
+        NPThresh = NPResults{2};
+        NPBinaryClean = NPResults{3};
+        NPLabels = NPResults{4};
+        NPSum = sum(NPThresh, 'all');
+    else
+        numNPs = NaN;
+        NPSum = NaN;
+        % Make an empty channel for the composite image.
+        NPThresh = zeros(size(nucThresh));
+    end
+    
     % Calculate correlation between gal8 foci and NPs.
-    disp('Calculating colocalization of Gal8 and NPs...');
-    mandersCells = Manders_ED(gal8Thresh, NPThresh);
+    if GAL8_CHANNEL && NP_CHANNEL
+        disp('Calculating colocalization of Gal8 and NPs...');
+        mandersCells = Manders_ED(gal8Thresh, NPThresh);
+        % Identify number of overlapping regions from binary images
+        overlapBinaryClean = gal8BinaryClean & NPBinaryClean;
+        overlapMap = watershed(~overlapBinaryClean);
+        numOverlap = max(overlapMap(:));
+    else
+        % We can't calculate overlap without both channels.
+        mandersCells = {NaN, NaN, NaN, NaN, NaN};
+        numOverlap = NaN;
+    end
     rP = mandersCells{1};
     rOverlap = mandersCells{2};
     MOC = mandersCells{3};
     ch1Overlap = mandersCells{4};
     ch2Overlap = mandersCells{5};
-    
-    % Identify number of overlapping regions from binary images
-    overlapBinaryClean = gal8BinaryClean & NPBinaryClean;
-    overlapMap = watershed(~overlapBinaryClean);
-    numOverlap = max(overlapMap(:));
     
     % Save the results in the output array.
     outputArray(i,:) = {...
@@ -272,7 +303,7 @@ for i = 1:numImages % Iterate over all images.
         nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
         imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), FILETYPE);
     end
-    if EXPORT_GAL8_ANNOTATIONS
+    if EXPORT_GAL8_ANNOTATIONS && GAL8_CHANNEL
         disp('Exporting Gal8 annotations...');
         gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
             imdilate(gal8BinaryClean, se8));
@@ -281,7 +312,7 @@ for i = 1:numImages % Iterate over all images.
         imwrite(gal8Circled, strcat(...
             exportbase, 'composite_Gal8_circled', '.png'), FILETYPE);
     end
-    if EXPORT_NP_ANNOTATIONS
+    if EXPORT_NP_ANNOTATIONS && NP_CHANNEL
         disp('Exporting NP annotations...');
         NPCircles = xor(imdilate(NPBinaryClean, se10),...
             imdilate(NPBinaryClean, se8));
@@ -290,7 +321,7 @@ for i = 1:numImages % Iterate over all images.
         imwrite(NPCircled, strcat(...
             exportbase, 'composite_NP_circled', '.png'), FILETYPE);
     end
-    if EXPORT_OVERLAP_ANNOTATIONS
+    if EXPORT_OVERLAP_ANNOTATIONS && GAL8_CHANNEL && NP_CHANNEL
         disp('Exporting colocalization annotations...');
         overlapCircles = xor(imdilate(overlapBinaryClean, se10),...
             imdilate(overlapBinaryClean, se8));
@@ -308,7 +339,7 @@ for i = 1:numImages % Iterate over all images.
             nucThresh.*NUC_BRIGHTEN);
         imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
     end
-    if EXPORT_CORRELATION_PLOTS
+    if EXPORT_CORRELATION_PLOTS && GAL8_CHANNEL && NP_CHANNEL
         % Plot the intensity of Gal8 versus the intensity of NPs.
         disp('Exporting a correlation plot...');
         fig = figure(i);
