@@ -72,7 +72,7 @@ TEST_MODE = false;
 if TEST_MODE
     TECH_REPLICATES = 1;
     PLATE_COLUMNS = 1;
-    GROUP_TITLES = {'Group 1'};
+    GROUP_TITLES = {'Test'};
 else
     TECH_REPLICATES = 3;
     PLATE_COLUMNS = 10;
@@ -194,7 +194,7 @@ for i = 1:numImages % Iterate over all images.
     % The image is opened as a stack so just take the first one.
     series1 = data{1, 1};
     % Split the multi-channel image into its three components.
-    nuc = series1{NUC_CHANNEL, 1}; % Nuclei image is the second channel.
+    nuc = series1{NUC_CHANNEL, 1}; % Nuclei image
     if GAL8_CHANNEL
         gal8 = series1{GAL8_CHANNEL, 1};
         gal8TH = imtophat(gal8, SE_GAL8_TH);
@@ -208,6 +208,10 @@ for i = 1:numImages % Iterate over all images.
     if GAL8_CHANNEL && NP_CHANNEL
         gal8Corr = gal8TH - NP_GAL8_CROSSTALK * NPTH;
         NPCorr = NPTH - GAL8_NP_CROSSTALK * gal8TH;
+    elseif ~GAL8_CHANNEL
+        NPCorr = NPTH;
+    else
+        gal8Corr = gal8TH;
     end
     
     % Identify nuclei.
