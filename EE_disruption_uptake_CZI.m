@@ -1,6 +1,9 @@
-%% Gal8 Recruitment MATLAB Program
+%% Gal8 recruitment and NP uptake quantification script
 
-% Written by Kameron V Kilchrist in the Biomedical Engineering Department
+% Adapted in 2021 by Eric Donders and Kai Slaughter under the supervision
+% of Molly Shoichet in the University of Toront.
+
+% Original by Kameron V Kilchrist in the Biomedical Engineering Department
 % at Vanderbilt University 2015 - 2018 in the course of his PhD studies
 % advised by Craig Duvall (https://my.vanderbilt.edu/duvall/)
 
@@ -64,10 +67,8 @@ NP_GAL8_CROSSTALK = 0.01;
 % Suppress sorting to test individual images
 TEST_MODE = true;
 
-% Define technical replicates and plate size. The script assumes technical
-% replicates are placed in the same column.
-% Note that these values are for annotation purposes only; not configuring
-% them will not affect quantification in any way.
+% The adapted script used images captured with a 40x objective and 14 bit
+% depth.
 
 if TEST_MODE
     TECH_REPLICATES = 1;
@@ -122,7 +123,7 @@ SE_NUC_OP = se25; % Nucleus open
 SE_NP_TH = se5; % Uptake tophat
 SE_NP_OP = se2; % Uptake open
 
-%% Analysis
+%% Setup
 disp('Choose input directory')
 workingdir = [uigetdir(), '/']; % Prompts user for input directory
 disp('Choose output directory')
@@ -130,6 +131,10 @@ exportdir = [uigetdir(), '/']; % Prompts user for output directory
 listing = dir(strcat(workingdir, '*.CZI'));
 numImages = length(listing);
 
+% Load the configuration data from the input directory.
+run(strcat(workingdir, 'Config.m'));
+
+%% Analysis
 % Validate configuration values.
 if ~TEST_MODE
     if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
