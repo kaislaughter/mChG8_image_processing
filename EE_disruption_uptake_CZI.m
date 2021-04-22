@@ -42,7 +42,6 @@ warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 % The Run number is used to track multiple runs of the software, and is 
 % used in export file names and in the DataCells array. 
 % Note: it is a character array / string!
-RUN = '1';
 
 % Channel selection.
 % If one channel is not included, set the channel to 0 or false.
