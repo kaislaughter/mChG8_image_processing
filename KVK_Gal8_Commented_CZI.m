@@ -41,7 +41,7 @@ workingdir=[uigetdir(),'/']; % Prompts user for input directory
 display('Choose output directory')
 exportdir=[uigetdir(),'/']; % Prompts user for output directory
 filetype='png';
-listing=dir(strcat(workingdir,'*.CZI'));
+listing=dir(strcat(workingdir,'*.OIB'));
 
 %% Parameters
 debug=0;

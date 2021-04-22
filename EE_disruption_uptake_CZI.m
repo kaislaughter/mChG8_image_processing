@@ -48,9 +48,9 @@ FILETYPE = 'png';
 EXPORT_NUC_MAP = false;
 EXPORT_GAL8_ANNOTATIONS = true;
 EXPORT_NP_ANNOTATIONS = true;
-EXPORT_OVERLAP_ANNOTATIONS = true;
-EXPORT_COMPOSITE = true;
-EXPORT_CORRELATION_PLOTS = true;
+EXPORT_OVERLAP_ANNOTATIONS = false;
+EXPORT_COMPOSITE = false;
+EXPORT_CORRELATION_PLOTS = false;
 GAL8_BRIGHTEN = 200;  % Signal multiplier for display only.
 NP_BRIGHTEN = 200;  % Signal multiplier for display only.
 NUC_BRIGHTEN = 50;  % Signal multiplier for display only.
@@ -62,7 +62,7 @@ GAL8_NP_CROSSTALK = 0.27;
 NP_GAL8_CROSSTALK = 0.01;
 
 % Suppress sorting to test individual images
-TEST_MODE = false;
+TEST_MODE = true;
 
 % Define technical replicates and plate size. The script assumes technical
 % replicates are placed in the same column.
@@ -119,7 +119,7 @@ se100 = strel('disk',100);
 SE_GAL8_TH = se20; % Gal8 tophat
 SE_GAL8_OP = se2; % Gal8 open
 SE_NUC_OP = se25; % Nucleus open
-SE_NP_TH = se20; % Uptake tophat
+SE_NP_TH = se5; % Uptake tophat
 SE_NP_OP = se2; % Uptake open
 
 %% Analysis
