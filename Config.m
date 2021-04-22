@@ -14,8 +14,10 @@ GAL8_CHANNEL = 1;
 NUC_CHANNEL = 2;
 NP_CHANNEL = 3;
 
-% Choose which images will be exported and in what format.
+% Choose file type for input microscope images
 IMAGETYPE = '*.CZI';
+
+% Choose which images will be exported and in what format.
 FILETYPE = 'png';
 EXPORT_NUC_MAP = false;
 EXPORT_GAL8_ANNOTATIONS = true;
