@@ -15,6 +15,7 @@ NUC_CHANNEL = 2;
 NP_CHANNEL = 3;
 
 % Choose which images will be exported and in what format.
+IMAGETYPE = '*.CZI';
 FILETYPE = 'png';
 EXPORT_NUC_MAP = false;
 EXPORT_GAL8_ANNOTATIONS = true;
