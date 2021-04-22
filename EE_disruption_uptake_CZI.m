@@ -1,7 +1,7 @@
 %% Gal8 recruitment and NP uptake quantification script
 
 % Adapted in 2021 by Eric Donders and Kai Slaughter under the supervision
-% of Molly Shoichet in the University of Toront.
+% of Molly Shoichet in the University of Toronto.
 
 % Original by Kameron V Kilchrist in the Biomedical Engineering Department
 % at Vanderbilt University 2015 - 2018 in the course of his PhD studies
@@ -25,19 +25,23 @@
 % This will measure the total Gal8 recruited to puncta and count cell
 % nuclei in each frame.
 
-% This code assumes you have 2 (or 3) frame CZI images consisting of a
-% Gal8 fluorescent stain in channel 1 (e.g., Gal8-mCherry)and a nuclear
-% stain in channel 2 (e.g., DAPI or Hoechest). MATLAB plays more nicely
-% with 16 bit data. Original script used images that were 2048 px squared
-% with a 20x objective, so if you use larger or smaller images or higher
-% mag objectives, you will likely need to edit this.
+% This code assumes you have 2 (or 3) frame CZI images consisting of
+% a nuclear stain (default channel 2, e.g., DAPI or Hoechest), a Gal8 
+% fluorescent stain (default channel 1, e.g., Gal8-mCherry) and 
+% fluorescently labelled nanoparticles (default channel 3, e.g. Cy5 or DiD)
+
+% MATLAB plays more nicely with 16 bit data. Original script used images 
+% that were 2048 px squared with a 20x objective, so if you use larger or 
+% smaller images or higher mag objectives, you will likely need to 
+% edit this.
+
 clc, clear, close all;
 warning('OFF', 'MATLAB:xlswrite:AddSheet'); % Disable new sheet warning.
 
 %% Parameters
-% The Run number is used to track multiple runs of the software, and is used in
-% export file names and in the DataCells array. Note: it is a character
-% array / string!
+% The Run number is used to track multiple runs of the software, and is 
+% used in export file names and in the DataCells array. 
+% Note: it is a character array / string!
 RUN = '1';
 
 % Channel selection.
