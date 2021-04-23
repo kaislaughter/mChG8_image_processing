@@ -85,9 +85,9 @@ outputArray = cell(numImages, length(outputHeaders));
 figureArray = zeros(numImages, 1);
 
 for i = 1:numImages % Iterate over all images.
-    % Select the jth image
+    % Select the ith image
     imageTitle = listing(i,1).name(1:end-4);
-    currfile = strcat(workingdir, listing(i,1).name);
+    currFile = strcat(workingdir, listing(i,1).name);
     fn = listing(i,1).name;
     
     if TEST_MODE
@@ -110,7 +110,7 @@ for i = 1:numImages % Iterate over all images.
     % Load the image.
     % Note that Bio-Formats toolbox must be downloaded and placed in the
     % working directory or MATLAB path.
-    data = bfopen(currfile);
+    data = bfopen(currFile);
     % The image is opened as a stack so just take the first one.
     series1 = data{1, 1};
     % Split the multi-channel image into its three components.
