@@ -42,18 +42,27 @@ workingdir = [uigetdir(), '/']; % Prompts user for input directory
 disp('Choose output directory')
 exportdir = [uigetdir(), '/']; % Prompts user for output directory
 
-% Load the configuration data from the input directory
-run(strcat(workingdir,'Config.m'));
+% Load the configuration data from the output directory
+% Note: a single Map object called "config" is created in this script.
+run(strcat(exportdir, 'Config.m'));
 
-listing = dir(strcat(workingdir,IMAGETYPE));
+listing = dir(strcat(workingdir, config('IMAGETYPE')));
 numImages = length(listing);
+
+%% Gal8 threshold optimization
+if config('OPTIMIZE_GAL8_THRESHOLD')
+    OptimizeGal8Threshold(config, workingdir);
+end
 
 %% Analysis
 % Validate configuration values.
+% Note, groupTitles must be assigned as its own variable because temporary
+% objects can't be indexed.
+groupTitles = config('GROUP_TITLES');
 if ~TEST_MODE
-    if numImages ~= length(GROUP_TITLES) * TECH_REPLICATES
+    if numImages ~= length(groupTitles) * config('TECH_REPLICATES')
         error(['Mismatch between expected '...
-            num2str(length(GROUP_TITLES) * TECH_REPLICATES)...
+            num2str(length(groupTitles) * config('TECH_REPLICATES'))...
             ' and found ' num2str(numImages) ' number of images!']);
     end
 end
@@ -90,16 +99,16 @@ for i = 1:numImages % Iterate over all images.
     currFile = strcat(workingdir, listing(i,1).name);
     fn = listing(i,1).name;
     
-    if TEST_MODE
+    if config('TEST_MODE')
         groupNum = 1;
         wellNum = 1;
     else
         % Extract the well number from the filename.
         wellNum = extractBetween(fn, '(', ')');
         wellNum = str2double(wellNum{1});
-        groupNum = PLATE_COLUMNS * fix((wellNum - 1)...
-            / (PLATE_COLUMNS * TECH_REPLICATES))...
-            + rem((wellNum - 1), PLATE_COLUMNS) + 1;
+        groupNum = config('PLATE_COLUMNS') * fix((wellNum - 1)...
+            / (config('PLATE_COLUMNS') * config('TECH_REPLICATES')))...
+            + rem((wellNum - 1), config('PLATE_COLUMNS')) + 1;
     end
     
     if i == 1
@@ -114,38 +123,38 @@ for i = 1:numImages % Iterate over all images.
     % The image is opened as a stack so just take the first one.
     series1 = data{1, 1};
     % Split the multi-channel image into its three components.
-    nuc = series1{NUC_CHANNEL, 1}; % Nuclei image
-    if GAL8_CHANNEL
-        gal8 = series1{GAL8_CHANNEL, 1};
-        gal8TH = imtophat(gal8, SE_GAL8_TH);
+    nuc = series1{config('NUC_CHANNEL'), 1}; % Nuclei image
+    if config('GAL8_CHANNEL')
+        gal8 = series1{config('GAL8_CHANNEL'), 1};
+        gal8TH = imtophat(gal8, config('SE_GAL8_TH'));
     end
-    if NP_CHANNEL
-        uptake = series1{NP_CHANNEL, 1};
-        NPTH = imtophat(uptake, SE_NP_TH);
+    if config('NP_CHANNEL')
+        uptake = series1{config('NP_CHANNEL'), 1};
+        NPTH = imtophat(uptake, config('SE_NP_TH'));
     end
     
     % Clean up images.
-    if GAL8_CHANNEL && NP_CHANNEL
-        gal8Corr = gal8TH - NP_GAL8_CROSSTALK * NPTH;
-        NPCorr = NPTH - GAL8_NP_CROSSTALK * gal8TH;
-    elseif ~GAL8_CHANNEL
-        NPCorr = NPTH;
+    if config('GAL8_CHANNEL') && config('NP_CHANNEL')
+        gal8Corr = gal8TH - config('NP_GAL8_CROSSTALK') * config('NPTH');
+        NPCorr = config('NPTH') - config('GAL8_NP_CROSSTALK') * config('gal8TH');
+    elseif ~config('GAL8_CHANNEL')
+        NPCorr = config('NPTH');
     else
         gal8Corr = gal8TH;
     end
     
     % Identify nuclei.
     disp('Identifying nuclei...');
-    nucCells = identifyNuclei(nuc, SE_NUC_OP);
+    nucCells = identifyNuclei(nuc, config('SE_NUC_OP'));
     numNuclei = nucCells{1};
     nucThresh = nucCells{2};
     nucBinaryClean = nucCells{3};
     nucLabels = nucCells{4};
     
     % Identify gal8 foci.
-    if GAL8_CHANNEL
+    if config('GAL8_CHANNEL')
         disp('Identifying Gal8 foci...');
-        fociResults = identifyFoci(gal8Corr, GAL8_THRESHOLD, SE_GAL8_OP);
+        fociResults = identifyFoci(gal8Corr, config('GAL8_THRESHOLD'), config('SE_GAL8_OP'));
         numFoci = fociResults{1};
         gal8Thresh = fociResults{2};
         gal8BinaryClean = fociResults{3};
@@ -159,10 +168,10 @@ for i = 1:numImages % Iterate over all images.
     end
     
     % Identify endocytosed NPs.
-    if NP_CHANNEL
+    if config('NP_CHANNEL')
         disp('Identifying endocytosed NPs...');
         % Correct for some Gal8 fluorescence bleeding into NP channel.
-        NPResults = identifyFoci(NPCorr, NP_THRESHOLD, SE_NP_OP);
+        NPResults = identifyFoci(NPCorr, config('NP_THRESHOLD'), config('SE_NP_OP'));
         numNPs = NPResults{1};
         NPThresh = NPResults{2};
         NPBinaryClean = NPResults{3};
@@ -176,7 +185,7 @@ for i = 1:numImages % Iterate over all images.
     end
     
     % Calculate correlation between gal8 foci and NPs.
-    if GAL8_CHANNEL && NP_CHANNEL
+    if config('GAL8_CHANNEL') && config('NP_CHANNEL')
         disp('Calculating colocalization of Gal8 and NPs...');
         mandersCells = Manders_ED(gal8Thresh, NPThresh);
         % Identify number of overlapping regions from binary images
@@ -196,7 +205,7 @@ for i = 1:numImages % Iterate over all images.
     
     % Save the results in the output array.
     outputArray(i,:) = {...
-        RUN,...
+        config('RUN'),...
         groupNum,...
         wellNum,...
         imageTitle,...
@@ -221,63 +230,63 @@ for i = 1:numImages % Iterate over all images.
     disp(outputArray(1:i,:));
       
     % Export the specified images.
-    exportbase = strcat(exportdir, imageTitle, '_', RUN, '_');
-    if EXPORT_NUC_MAP
+    exportbase = strcat(exportdir, imageTitle, '_', config('RUN'), '_');
+    if config('EXPORT_NUC_MAP')
         % Generate and save "sanity check" rainbow map for nuclei.
         disp('Exporting nuclei map...');
         nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
-        imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), FILETYPE);
+        imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), config('FILETYPE'));
     end
-    if EXPORT_GAL8_ANNOTATIONS && GAL8_CHANNEL
+    if config('EXPORT_GAL8_ANNOTATIONS') && config('GAL8_CHANNEL')
         disp('Exporting Gal8 annotations...');
         gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
             imdilate(gal8BinaryClean, se8));
         gal8Circled = cat(3, gal8Circles.*2^16,...
-            gal8Thresh.*GAL8_BRIGHTEN, nucThresh.*NUC_BRIGHTEN);
+            gal8Thresh.*config('GAL8_BRIGHTEN'), nucThresh.*config('NUC_BRIGHTEN'));
         imwrite(gal8Circled, strcat(...
-            exportbase, 'composite_Gal8_circled', '.png'), FILETYPE);
+            exportbase, 'composite_Gal8_circled', '.png'), config('FILETYPE'));
     end
-    if EXPORT_NP_ANNOTATIONS && NP_CHANNEL
+    if config('EXPORT_NP_ANNOTATIONS') && config('NP_CHANNEL')
         disp('Exporting NP annotations...');
         NPCircles = xor(imdilate(NPBinaryClean, se10),...
             imdilate(NPBinaryClean, se8));
-        NPCircled = cat(3, NPThresh.*NP_BRIGHTEN, NPCircles.*2^16,...
-            nucThresh.*NUC_BRIGHTEN);
+        NPCircled = cat(3, NPThresh.*config('NP_BRIGHTEN'), NPCircles.*2^16,...
+            nucThresh.*config('NUC_BRIGHTEN'));
         imwrite(NPCircled, strcat(...
-            exportbase, 'composite_NP_circled', '.png'), FILETYPE);
+            exportbase, 'composite_NP_circled', '.png'), config('FILETYPE'));
     end
-    if EXPORT_OVERLAP_ANNOTATIONS && GAL8_CHANNEL && NP_CHANNEL
+    if config('EXPORT_OVERLAP_ANNOTATIONS') && config('GAL8_CHANNEL') && config('NP_CHANNEL')
         disp('Exporting colocalization annotations...');
         overlapCircles = xor(imdilate(overlapBinaryClean, se10),...
             imdilate(overlapBinaryClean, se8));
         overlapCircled = cat(3,...
-            NPThresh.*NP_BRIGHTEN + uint16(overlapCircles.*2^16),...
-            gal8Thresh.*GAL8_BRIGHTEN + uint16(overlapCircles.*2^16),...
-            nucThresh.*NUC_BRIGHTEN + uint16(overlapCircles.*2^16));
+            NPThresh.*config('NP_BRIGHTEN') + uint16(overlapCircles.*2^16),...
+            gal8Thresh.*config('GAL8_BRIGHTEN') + uint16(overlapCircles.*2^16),...
+            nucThresh.*config('NUC_BRIGHTEN') + uint16(overlapCircles.*2^16));
         imwrite(overlapCircled, strcat(...
-            exportbase, 'composite_overlap_circled', '.png'), FILETYPE);
+            exportbase, 'composite_overlap_circled', '.png'), config('FILETYPE'));
     end
-    if EXPORT_COMPOSITE
+    if config('EXPORT_COMPOSITE')
         % Generate output composite images
         disp('Exporting composite image...');
-        comp = cat(3, NPThresh.*NP_BRIGHTEN, gal8Thresh.*GAL8_BRIGHTEN,...
-            nucThresh.*NUC_BRIGHTEN);
-        imwrite(comp, strcat(exportbase, 'composite', '.png'), FILETYPE);
+        comp = cat(3, NPThresh.*config('NP_BRIGHTEN'), gal8Thresh.*config('GAL8_BRIGHTEN'),...
+            nucThresh.*config('NUC_BRIGHTEN'));
+        imwrite(comp, strcat(exportbase, 'composite', '.png'), config('FILETYPE'));
     end
-    if EXPORT_CORRELATION_PLOTS && GAL8_CHANNEL && NP_CHANNEL
+    if config('EXPORT_CORRELATION_PLOTS') && config('GAL8_CHANNEL') && config('NP_CHANNEL')
         % Plot the intensity of Gal8 versus the intensity of NPs.
         disp('Exporting a correlation plot...');
         fig = figure(i);
         scatter(NPCorr(:), gal8Corr(:), '.');
         xlim([0 2000]);
         ylim([0 2000]);
-        xline(NP_THRESHOLD);
-        yline(GAL8_THRESHOLD);
+        xline(config('NP_THRESHOLD'));
+        yline(config('GAL8_THRESHOLD'));
         xlabel('NP pixel intensity');
         ylabel('Gal8 pixel intensity');
-        titleStr = [GROUP_TITLES{groupNum} ' (well ' num2str(wellNum) ')'];
+        titleStr = [groupTitles{groupNum} ' (well ' num2str(wellNum) ')'];
         title(titleStr);
-        saveas(fig, strcat(exportdir, titleStr), FILETYPE);
+        saveas(fig, strcat(exportdir, titleStr), config('FILETYPE'));
         close;
     end
 end
@@ -286,13 +295,13 @@ end
 disp('Saving results...');
 exportFilename = strcat(exportdir, runName, '_Output');
 exportExcelFile = strcat(exportFilename, '.xlsx');
-if ~TEST_MODE 
+if ~config('TEST_MODE') 
     outputArray = sortrows(outputArray, [1, 2, 3]);
 end
 writetable(cell2table(outputArray, 'VariableNames', outputHeaders),...
     exportExcelFile);
 for i = 1:length(outputHeaders)
     exportGroupedData(outputHeaders{i}, outputArray(:, i),...
-        GROUP_TITLES, exportExcelFile, i + 1);
+        groupTitles, exportExcelFile, i + 1);
 end
 disp('Finished processing!');
