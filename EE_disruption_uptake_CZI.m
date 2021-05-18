@@ -57,7 +57,11 @@ if config('OPTIMIZE_GAL8_THRESHOLD')
         error(['The Global Optimization Toolbox is required but not '...
             'installed.']);
     end
-    config('GAL8_THRESHOLD') = OptimizeGal8Threshold(config, workingdir);
+    optimalGal8Thresh = OptimizeGal8Threshold(config, workingdir);
+    disp(['Gal8 threshold optimized from ',...
+        num2str(config('GAL8_THRESHOLD')), ' to ',...
+        optimalGal8Thresh]);
+    config('GAL8_THRESHOLD') = optimalGal8Thresh;
 end
 
 %% Analysis
