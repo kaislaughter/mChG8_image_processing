@@ -50,8 +50,14 @@ listing = dir(strcat(workingdir, config('IMAGETYPE')));
 numImages = length(listing);
 
 %% Gal8 threshold optimization
+% Note: the Global Optimization Toolbox must be installed to use this
+% feature.
 if config('OPTIMIZE_GAL8_THRESHOLD')
-    OptimizeGal8Threshold(config, workingdir);
+    if ~contains(struct2array(ver), 'Global Optimization Toolbox')
+        error(['The Global Optimization Toolbox is required but not '...
+            'installed.']);
+    end
+    config('GAL8_THRESHOLD') = OptimizeGal8Threshold(config, workingdir);
 end
 
 %% Analysis
@@ -136,7 +142,8 @@ for i = 1:numImages % Iterate over all images.
     % Clean up images.
     if config('GAL8_CHANNEL') && config('NP_CHANNEL')
         gal8Corr = gal8TH - config('NP_GAL8_CROSSTALK') * config('NPTH');
-        NPCorr = config('NPTH') - config('GAL8_NP_CROSSTALK') * config('gal8TH');
+        NPCorr = config('NPTH') - config('GAL8_NP_CROSSTALK')...
+            * config('gal8TH');
     elseif ~config('GAL8_CHANNEL')
         NPCorr = config('NPTH');
     else
@@ -154,7 +161,8 @@ for i = 1:numImages % Iterate over all images.
     % Identify gal8 foci.
     if config('GAL8_CHANNEL')
         disp('Identifying Gal8 foci...');
-        fociResults = identifyFoci(gal8Corr, config('GAL8_THRESHOLD'), config('SE_GAL8_OP'));
+        fociResults = identifyFoci(gal8Corr, config('GAL8_THRESHOLD'),...
+            config('SE_GAL8_OP'));
         numFoci = fociResults{1};
         gal8Thresh = fociResults{2};
         gal8BinaryClean = fociResults{3};
@@ -171,7 +179,8 @@ for i = 1:numImages % Iterate over all images.
     if config('NP_CHANNEL')
         disp('Identifying endocytosed NPs...');
         % Correct for some Gal8 fluorescence bleeding into NP channel.
-        NPResults = identifyFoci(NPCorr, config('NP_THRESHOLD'), config('SE_NP_OP'));
+        NPResults = identifyFoci(NPCorr, config('NP_THRESHOLD'),...
+            config('SE_NP_OP'));
         numNPs = NPResults{1};
         NPThresh = NPResults{2};
         NPBinaryClean = NPResults{3};
@@ -235,45 +244,57 @@ for i = 1:numImages % Iterate over all images.
         % Generate and save "sanity check" rainbow map for nuclei.
         disp('Exporting nuclei map...');
         nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
-        imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'), config('FILETYPE'));
+        imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'),...
+            config('FILETYPE'));
     end
     if config('EXPORT_GAL8_ANNOTATIONS') && config('GAL8_CHANNEL')
         disp('Exporting Gal8 annotations...');
         gal8Circles = xor(imdilate(gal8BinaryClean, se10),...
             imdilate(gal8BinaryClean, se8));
         gal8Circled = cat(3, gal8Circles.*2^16,...
-            gal8Thresh.*config('GAL8_BRIGHTEN'), nucThresh.*config('NUC_BRIGHTEN'));
+            gal8Thresh.*config('GAL8_BRIGHTEN'),...
+            nucThresh.*config('NUC_BRIGHTEN'));
         imwrite(gal8Circled, strcat(...
-            exportbase, 'composite_Gal8_circled', '.png'), config('FILETYPE'));
+            exportbase, 'composite_Gal8_circled', '.png'),...
+            config('FILETYPE'));
     end
     if config('EXPORT_NP_ANNOTATIONS') && config('NP_CHANNEL')
         disp('Exporting NP annotations...');
         NPCircles = xor(imdilate(NPBinaryClean, se10),...
             imdilate(NPBinaryClean, se8));
-        NPCircled = cat(3, NPThresh.*config('NP_BRIGHTEN'), NPCircles.*2^16,...
-            nucThresh.*config('NUC_BRIGHTEN'));
+        NPCircled = cat(3, NPThresh.*config('NP_BRIGHTEN'),...
+            NPCircles.*2^16, nucThresh.*config('NUC_BRIGHTEN'));
         imwrite(NPCircled, strcat(...
-            exportbase, 'composite_NP_circled', '.png'), config('FILETYPE'));
+            exportbase, 'composite_NP_circled', '.png'),...
+            config('FILETYPE'));
     end
-    if config('EXPORT_OVERLAP_ANNOTATIONS') && config('GAL8_CHANNEL') && config('NP_CHANNEL')
+    if config('EXPORT_OVERLAP_ANNOTATIONS') && config('GAL8_CHANNEL')...
+            && config('NP_CHANNEL')
         disp('Exporting colocalization annotations...');
         overlapCircles = xor(imdilate(overlapBinaryClean, se10),...
             imdilate(overlapBinaryClean, se8));
         overlapCircled = cat(3,...
-            NPThresh.*config('NP_BRIGHTEN') + uint16(overlapCircles.*2^16),...
-            gal8Thresh.*config('GAL8_BRIGHTEN') + uint16(overlapCircles.*2^16),...
-            nucThresh.*config('NUC_BRIGHTEN') + uint16(overlapCircles.*2^16));
+            NPThresh.*config('NP_BRIGHTEN')...
+            + uint16(overlapCircles.*2^16),...
+            gal8Thresh.*config('GAL8_BRIGHTEN')...
+            + uint16(overlapCircles.*2^16),...
+            nucThresh.*config('NUC_BRIGHTEN')...
+            + uint16(overlapCircles.*2^16));
         imwrite(overlapCircled, strcat(...
-            exportbase, 'composite_overlap_circled', '.png'), config('FILETYPE'));
+            exportbase, 'composite_overlap_circled', '.png'),...
+            config('FILETYPE'));
     end
     if config('EXPORT_COMPOSITE')
         % Generate output composite images
         disp('Exporting composite image...');
-        comp = cat(3, NPThresh.*config('NP_BRIGHTEN'), gal8Thresh.*config('GAL8_BRIGHTEN'),...
+        comp = cat(3, NPThresh.*config('NP_BRIGHTEN'),...
+            gal8Thresh.*config('GAL8_BRIGHTEN'),...
             nucThresh.*config('NUC_BRIGHTEN'));
-        imwrite(comp, strcat(exportbase, 'composite', '.png'), config('FILETYPE'));
+        imwrite(comp, strcat(exportbase, 'composite', '.png'),...
+            config('FILETYPE'));
     end
-    if config('EXPORT_CORRELATION_PLOTS') && config('GAL8_CHANNEL') && config('NP_CHANNEL')
+    if config('EXPORT_CORRELATION_PLOTS') && config('GAL8_CHANNEL')...
+            && config('NP_CHANNEL')
         % Plot the intensity of Gal8 versus the intensity of NPs.
         disp('Exporting a correlation plot...');
         fig = figure(i);

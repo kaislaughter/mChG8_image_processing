@@ -5,8 +5,8 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
 %   Detailed explanation goes here
 
     % Initialize paths and variables.
-    listingPC = dir(strcat(baseDir, 'PC/', imageType));
-    listingNC = dir(strcat(baseDir, 'NC/', imageType));
+    listingPC = dir(strcat(baseDir, 'PC/', config('IMAGETYPE')));
+    listingNC = dir(strcat(baseDir, 'NC/', config('IMAGETYPE')));
     numPC = length(listingPC);
     numNC = length(listingNC);
     
@@ -16,9 +16,10 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
     % We load the images into memory and count nuclei beforehand so the
     % optimizer function (which is called many times) doesn't repeat these
     % expensive steps.
+    disp('Loading control images into memory.');
     PCData = cell(numPC, 2);
     for i = 1:numPC
-        data = bfopen(strcat(workingdir, listingPC(i,1).name));
+        data = bfopen(strcat(baseDir, listingPC(i,1).name));
         series1 = data{1, 1};
         % Store the tophat-transformed gal8 channel.
         gal8 = series1{config('GAL8_CHANNEL'), 1};
@@ -30,7 +31,7 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
     end
     NCData = cell(numNC, 2);
     for i = 1:numNC
-        data = bfopen(strcat(workingdir, listingNC(i,1).name));
+        data = bfopen(strcat(baseDir, listingNC(i,1).name));
         series1 = data{1, 1};
         % Store the tophat-transformed gal8 channel.
         gal8 = series1{config('GAL8_CHANNEL'), 1};
@@ -42,6 +43,7 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
     end
     
     % Run an optimization routine to maximize the signal-to-noise ratio.
+    disp('Starting optimization. This step may take a long time!');
     optimizerFunction = @(x) -Gal8SNRHelper(config, PCData, NCData, x);
     % Assume the optimum is somewhere between 0.5x and 2x the supplied
     % value.
@@ -57,9 +59,11 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
     
     % Print the results for debugging.
     if gal8ThreshOptimal == lowBound
-        warning('SNR maximized at the lower bound. Try decreasing the default threshold.');
+        warning(['SNR maximized at the lower bound. Try decreasing the '...
+            'default threshold.']);
     elseif gal8ThreshOptimal == highBound
-        warning('SNR maximized at the upper bound. Try increasing the default threshold.');
+        warning(['SNR maximized at the upper bound. Try increasing the '...
+            'default threshold.']);
     else
         disp(strcat('Optimal threshold identified as ',...
             num2str(gal8ThreshOptimal)));
