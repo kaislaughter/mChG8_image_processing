@@ -1,4 +1,5 @@
-function [sensitivityIndex] = Gal8SNRHelper(config, PCData, NCData, testThresh)
+function [sensitivityIndex] = Gal8SNRHelper(config, PCData, NCData,...
+    testThresh)
 %Gal8SNRHelper calculates the ratio between number of foci in positive and
 %negative controls.
 %   Images in "PC" and "NC" subfolders are loaded and the number of foci
@@ -33,7 +34,11 @@ function [sensitivityIndex] = Gal8SNRHelper(config, PCData, NCData, testThresh)
     % Calculate sensitivity index
     sensitivityIndex = 4 * (signalPCMean - signalNCMean)...
         / sqrt(signalPCSD.^2 + signalNCSD.^2);
-    disp(['Sensitivity with threshold ', num2str(testThresh), ':\t',...
-        num2str(sensitivityIndex)]);
+    % Effectively discard any result with infinite sensitivity.
+    if sensitivityIndex == Inf
+        sensitivityIndex = -sensitivityIndex;
+    end
+    fprintf('Sensitivity with threshold %i:\t%f\n', testThresh,...
+        sensitivityIndex);
 end
 

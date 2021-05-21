@@ -49,24 +49,30 @@ function [gal8ThreshOptimal] = OptimizeGal8Threshold(config, baseDir)
     % value.
     lowBound = round(config('GAL8_THRESHOLD') / 2);
     highBound = config('GAL8_THRESHOLD') * 2;
-    options = optimoptions('ga', 'Display', 'iter');
+    %options = optimoptions('ga', 'Display', 'iter');
     % Note: the input variable is constrained to integers only. Pixel
     % intensities are stored as integers so there is no sense searching
     % through different fractional thresholds.
-    result = ga(optimizerFunction, 1, [], [], [], [], lowBound,...
-        highBound, [], 1, options);
+    options = optimoptions('patternsearch', 'UseParallel', true,...
+        'CacheTol', 1, 'InitialMeshSize',...
+        round(0.5*(highBound - lowBound)), 'Display', 'iter');
+    integerConstraint = @(x) deal(0, mod(x, 1));
+    result = patternsearch(optimizerFunction, config('GAL8_THRESHOLD'),...
+        [], [], [], [], lowBound, highBound, integerConstraint, options);
+    %result = ga(optimizerFunction, 1, [], [], [], [], lowBound,...
+    %    highBound, [], 1, options);
     gal8ThreshOptimal = result(1);
     
     % Print the results for debugging.
     if gal8ThreshOptimal == lowBound
-        warning(['SNR maximized at the lower bound. Try decreasing the '...
-            'default threshold.']);
+        warning(['Sensitivity maximized at the lower bound. Try '   
+            'decreasing the default threshold.']);
     elseif gal8ThreshOptimal == highBound
-        warning(['SNR maximized at the upper bound. Try increasing the '...
-            'default threshold.']);
+        warning(['Sensitivity maximized at the upper bound. Try '...
+            'increasing the default threshold.']);
     else
-        disp(strcat('Optimal threshold identified as ',...
-            num2str(gal8ThreshOptimal)));
+        fprintf('Optimal threshold identified as %f\n',...
+            gal8ThreshOptimal);
     end
 end
 

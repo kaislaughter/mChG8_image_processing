@@ -58,9 +58,8 @@ if config('OPTIMIZE_GAL8_THRESHOLD')
             'installed.']);
     end
     optimalGal8Thresh = OptimizeGal8Threshold(config, workingdir);
-    disp(['Gal8 threshold optimized from ',...
-        num2str(config('GAL8_THRESHOLD')), ' to ',...
-        optimalGal8Thresh]);
+    fprintf('Gal8 threshold optimized from %i to %i\n',...
+        config('GAL8_THRESHOLD'), optimalGal8Thresh);
     config('GAL8_THRESHOLD') = optimalGal8Thresh;
 end
 
@@ -69,7 +68,7 @@ end
 % Note, groupTitles must be assigned as its own variable because temporary
 % objects can't be indexed.
 groupTitles = config('GROUP_TITLES');
-if ~TEST_MODE
+if ~config('TEST_MODE')
     if numImages ~= length(groupTitles) * config('TECH_REPLICATES')
         error(['Mismatch between expected '...
             num2str(length(groupTitles) * config('TECH_REPLICATES'))...
@@ -145,11 +144,11 @@ for i = 1:numImages % Iterate over all images.
     
     % Clean up images.
     if config('GAL8_CHANNEL') && config('NP_CHANNEL')
-        gal8Corr = gal8TH - config('NP_GAL8_CROSSTALK') * config('NPTH');
-        NPCorr = config('NPTH') - config('GAL8_NP_CROSSTALK')...
+        gal8Corr = gal8TH - config('NP_GAL8_CROSSTALK') * NPTH;
+        NPCorr = NPTH - config('GAL8_NP_CROSSTALK')...
             * config('gal8TH');
     elseif ~config('GAL8_CHANNEL')
-        NPCorr = config('NPTH');
+        NPCorr = NPTH;
     else
         gal8Corr = gal8TH;
     end
