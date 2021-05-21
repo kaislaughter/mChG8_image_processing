@@ -146,7 +146,7 @@ for i = 1:numImages % Iterate over all images.
     if config('GAL8_CHANNEL') && config('NP_CHANNEL')
         gal8Corr = gal8TH - config('NP_GAL8_CROSSTALK') * NPTH;
         NPCorr = NPTH - config('GAL8_NP_CROSSTALK')...
-            * config('gal8TH');
+            * gal8TH;
     elseif ~config('GAL8_CHANNEL')
         NPCorr = NPTH;
     else
