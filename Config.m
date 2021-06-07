@@ -22,6 +22,7 @@ config('IMAGETYPE') = '*.CZI';
 % Choose which images will be exported and in what format.
 config('FILETYPE') = 'png';
 config('EXPORT_NUC_MAP') = false;
+config('EXPORT_INDIVIDUAL_CHANNELS') = false;
 config('EXPORT_GAL8_ANNOTATIONS') = true;
 config('EXPORT_NP_ANNOTATIONS') = true;
 config('EXPORT_OVERLAP_ANNOTATIONS') = true;

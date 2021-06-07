@@ -49,6 +49,9 @@ run(strcat(exportdir, 'Config.m'));
 listing = dir(strcat(workingdir, config('IMAGETYPE')));
 numImages = length(listing);
 
+se8 = strel('disk', 8);
+se10 = strel('disk', 10);
+
 %% Gal8 threshold optimization
 % Note: the Global Optimization Toolbox must be installed to use this
 % feature.
@@ -102,7 +105,9 @@ outputHeaders = {...
 outputArray = cell(numImages, length(outputHeaders));
 figureArray = zeros(numImages, 1);
 
+%%
 for i = 1:numImages % Iterate over all images.
+    %%
     % Select the ith image
     imageTitle = listing(i,1).name(1:end-4);
     currFile = strcat(workingdir, listing(i,1).name);
@@ -121,12 +126,12 @@ for i = 1:numImages % Iterate over all images.
     end
     
     if i == 1
+    % Note that Bio-Formats toolbox must be downloaded and placed in the
         % Get the base run name that all images are based on.
         runName = extractBefore(fn, '(');
     end
     
     % Load the image.
-    % Note that Bio-Formats toolbox must be downloaded and placed in the
     % working directory or MATLAB path.
     data = bfopen(currFile);
     % The image is opened as a stack so just take the first one.
@@ -153,6 +158,7 @@ for i = 1:numImages % Iterate over all images.
         gal8Corr = gal8TH;
     end
     
+    %%
     % Identify nuclei.
     disp('Identifying nuclei...');
     nucCells = identifyNuclei(nuc, config('SE_NUC_OP'));
@@ -160,7 +166,7 @@ for i = 1:numImages % Iterate over all images.
     nucThresh = nucCells{2};
     nucBinaryClean = nucCells{3};
     nucLabels = nucCells{4};
-    
+    %%
     % Identify gal8 foci.
     if config('GAL8_CHANNEL')
         disp('Identifying Gal8 foci...');
@@ -177,7 +183,7 @@ for i = 1:numImages % Iterate over all images.
         % Make an empty channel for the composite image.
         gal8Thresh = zeros(size(nucThresh));
     end
-    
+    %%
     % Identify endocytosed NPs.
     if config('NP_CHANNEL')
         disp('Identifying endocytosed NPs...');
@@ -221,7 +227,7 @@ for i = 1:numImages % Iterate over all images.
         groupNum,...
         wellNum,...
         imageTitle,...
-        GROUP_TITLES{groupNum},...
+        groupTitles{groupNum},...
         double(numNuclei),...
         gal8Sum,...
         uint64(gal8Sum) / uint64(numNuclei),...
@@ -249,6 +255,28 @@ for i = 1:numImages % Iterate over all images.
         nucMap = label2rgb(nucLabels, 'jet', 'w', 'shuffle');
         imwrite(nucMap, strcat(exportbase, 'nucmap', '.png'),...
             config('FILETYPE'));
+    end
+    if config('EXPORT_INDIVIDUAL_CHANNELS')
+        disp('Exporting individual channels...');
+        zero_channel = zeros(size(nucThresh));
+        if config('NP_CHANNEL')
+            img = cat(3, NPThresh.*config('NP_BRIGHTEN'),...
+                zero_channel, NPThresh.*config('NP_BRIGHTEN'));
+            imwrite(img, strcat(...
+                exportbase, 'NPs.', config('FILETYPE')),...
+                config('FILETYPE'));
+        end
+        if config('GAL8_CHANNEL')
+            img = cat(3, zero_channel,...
+                gal8Thresh.*config('GAL8_BRIGHTEN'), zero_channel);
+            imwrite(img, strcat(...
+                exportbase, 'Gal8_foci.', config('FILETYPE')),...
+                config('FILETYPE'));
+        end
+        img = cat(3, zero_channel, zero_channel,...
+            nucThresh.*config('NUC_BRIGHTEN'));
+        imwrite(img, strcat(...
+            exportbase, 'Nuclei.', config('FILETYPE')), config('FILETYPE'));
     end
     if config('EXPORT_GAL8_ANNOTATIONS') && config('GAL8_CHANNEL')
         disp('Exporting Gal8 annotations...');
@@ -282,6 +310,7 @@ for i = 1:numImages % Iterate over all images.
             gal8Thresh.*config('GAL8_BRIGHTEN')...
             + uint16(overlapCircles.*2^16),...
             nucThresh.*config('NUC_BRIGHTEN')...
+            + NPThresh.*config('NP_BRIGHTEN')...
             + uint16(overlapCircles.*2^16));
         imwrite(overlapCircled, strcat(...
             exportbase, 'composite_overlap_circled', '.png'),...
@@ -292,7 +321,8 @@ for i = 1:numImages % Iterate over all images.
         disp('Exporting composite image...');
         comp = cat(3, NPThresh.*config('NP_BRIGHTEN'),...
             gal8Thresh.*config('GAL8_BRIGHTEN'),...
-            nucThresh.*config('NUC_BRIGHTEN'));
+            nucThresh.*config('NUC_BRIGHTEN')...
+            + NPThresh.*config('NP_BRIGHTEN'));
         imwrite(comp, strcat(exportbase, 'composite', '.png'),...
             config('FILETYPE'));
     end
@@ -315,6 +345,7 @@ for i = 1:numImages % Iterate over all images.
     end
 end
 
+%%
 % Export an Excel sheet of your data
 disp('Saving results...');
 exportFilename = strcat(exportdir, runName, '_Output');
