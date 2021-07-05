@@ -233,27 +233,32 @@ for i = 1:numImages % Iterate over all images.
         PLBinaryClean = PLResults{3};
         PLLabels = PLResults{4};
         PLSum = sum(PLThresh, 'all');
+    else
+        numPLs = NaN;
+        PLSum = NaN;
+        % Make an empty channel for the composite image.
+        PLThresh = zeros(size(nucThresh));
     end        
     
     %% Correlation calculations
     % Calculate correlation between gal8 foci and NPs.
     if config('GAL8_CHANNEL') && config('NP_CHANNEL')
         disp('Calculating colocalization of Gal8 and NPs...');
-        gal8NPmandersCells = Manders_ED(gal8Thresh, NPThresh);
+        mandersCells = Manders_ED(gal8Thresh, NPThresh);
         % Identify number of overlapping regions from binary images
         overlapBinaryClean = gal8BinaryClean & NPBinaryClean;
         overlapMap = watershed(~overlapBinaryClean);
         gal8NPnumOverlap = max(overlapMap(:));
     else
         % We can't calculate overlap without both channels.
-        gal8NPmandersCells = {NaN, NaN, NaN, NaN, NaN};
+        mandersCells = {NaN, NaN, NaN, NaN, NaN};
         gal8NPnumOverlap = NaN;
     end
-    gal8NPrP = gal8NPmandersCells{1};
-    gal8NPrOverlap = gal8NPmandersCells{2};
-    gal8NPMOC = gal8NPmandersCells{3};
-    gal8NPch1Overlap = gal8NPmandersCells{4};
-    gal8NPch2Overlap = gal8NPmandersCells{5};
+    gal8NPrP = mandersCells{1};
+    gal8NPrOverlap = mandersCells{2};
+    gal8NPMOC = mandersCells{3};
+    gal8NPch1Overlap = mandersCells{4};
+    gal8NPch2Overlap = mandersCells{5};
     
     % Calculate correlation between gal8 and phospholipidosis.
     if config('GAL8_CHANNEL') && config('PL_CHANNEL')
@@ -265,7 +270,7 @@ for i = 1:numImages % Iterate over all images.
         gal8PLnumOverlap = max(overlapMap(:));
     else
         % We can't calculate overlap without both channels.
-        gal8NPmandersCells = {NaN, NaN, NaN, NaN, NaN};
+        mandersCells = {NaN, NaN, NaN, NaN, NaN};
         gal8PLnumOverlap = NaN;
     end
     gal8PLrP = mandersCells{1};
@@ -284,7 +289,7 @@ for i = 1:numImages % Iterate over all images.
         NPPLnumOverlap = max(overlapMap(:));
     else
         % We can't calculate overlap without both channels.
-        gal8NPmandersCells = {NaN, NaN, NaN, NaN, NaN};
+        mandersCells = {NaN, NaN, NaN, NaN, NaN};
         NPPLnumOverlap = NaN;
     end
     NPPLrP = mandersCells{1};
