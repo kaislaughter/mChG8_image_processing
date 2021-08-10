@@ -19,7 +19,7 @@ clc, clear, close all;
 %% Config
 %   Fill in this section before each run.
 
-pixelSize = 0.1;  % um PLACEHOLDER
+pixelSize = 0.114;  % um
 zoomedWidth = 100;  % um
 zoomedHeight = 100;  % um
 scaleBar = 25;  % um
