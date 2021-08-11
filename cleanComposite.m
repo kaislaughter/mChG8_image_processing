@@ -10,6 +10,7 @@
 %    - Nuclei: blue
 %    - Gal8: green
 %    - Colloids/NPs: magenta (equal red and blue)
+%    - (Optional) phospholipidosis vesicles: cyan (equal blue and green)
 
 %   Output: individual channels plus composite images, in both the original
 %   size and a zoomed-in section, with scale bars.
@@ -17,14 +18,16 @@
 clc, clear, close all;
 
 %% Config
-%   Fill in this section before each run.
+% Fill in this section before each run.
 
 pixelSize = 0.114;  % um
 zoomedWidth = 100;  % um
 zoomedHeight = 100;  % um
 scaleBar = 25;  % um
-p = 25;  % pixels (padding and thickness of scale bar
+p = 25;  % pixels (padding and thickness of scale bar)
 textSize = 48;  % point (font size for the scale bar label)
+
+extraChannel = false;  % set to true if there's a 4th cyan channel
 
 %% Setup
 disp('Choose input directory')
@@ -39,10 +42,10 @@ for i = 1:numImages
     clc;
     disp(['Processing image ', num2str(i), ' of ', num2str(numImages)]);
     title = listing(i,1).name(1:end-4);
-    %%  Load the image
+    %% Load the image
     image = imread(strcat(workingdir, title, '.png'));
 
-    %%  Get the user to select ROIs for the zoomed sections
+    %% Get the user to select ROIs for the zoomed sections
     % Display the image and a rectangular ROI that the user can move.
     h = imshow(image);
     sectionROI = images.roi.Rectangle(gca, 'Position',...
@@ -55,18 +58,32 @@ for i = 1:numImages
         pause(0.02);
     end
 
-    %%  Export images and insets with added scale bars
+    %% Export images and insets with added scale bars
     disp('Splitting and cropping the image...');
     % Isolate individual channels
     colloids = image(:, :, 1);
-    gal8 = image(:, :, 2);
-    nuclei = image(:, :, 3) - colloids;
+    if extraChannel == true
+        extra = image(:, :, 2) - colloids;
+        gal8 = image(:, :, 2) - extra;
+        nuclei = image(:, :, 3) - colloids - extra;
+    else
+        gal8 = image(:, :, 2);
+        nuclei = image(:, :, 3) - colloids;
+    end
+    
     % Crop the image to the inset.
     imageZoomed = image(...
         pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
-    colloidsZoomed = imageZoomed(:, :, 1);
-    gal8Zoomed = imageZoomed(:, :, 2);
-    nucleiZoomed = imageZoomed(:, :, 3) - colloidsZoomed;
+    colloidsZoomed = colloids(...
+        pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
+    gal8Zoomed = gal8(...
+        pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
+    nucleiZoomed = nuclei(...
+        pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
+    if extraChannel == true
+        extraZoomed = extra(...
+            pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
+    end
     
     largeHeight = height(nuclei);
     largeWidth = width(nuclei);
@@ -108,6 +125,10 @@ for i = 1:numImages
         strcat(exportBase, 'gal8.png'));
     imwrite(cat(3, zerosLarge, zerosLarge, nuclei) + SBL,...
         strcat(exportBase, 'nuclei.png'));
+    if extraChannel == true
+        imwrite(cat(3, zerosLarge, extra, extra) + SBL,...
+            strcat(exportBase, 'extra.png'));
+    end
     % Export zoomed-in image.
     exportBaseZoomed = strcat(exportBase, 'zoomed_');
     imwrite(imageZoomed + SBS, strcat(exportBaseZoomed, 'composite.png'));
@@ -117,5 +138,9 @@ for i = 1:numImages
         strcat(exportBaseZoomed, 'gal8.png'));
     imwrite(cat(3, zerosSmall, zerosSmall, nucleiZoomed) + SBS,...
         strcat(exportBaseZoomed, 'nuclei.png'));
+    if extraChannel == true
+        imwrite(cat(3, zerosSmall, extraZoomed, extraZoomed) + SBS,...
+            strcat(exportBaseZoomed, 'extra.png'));
+    end
 end
 disp('Processing complete!');
