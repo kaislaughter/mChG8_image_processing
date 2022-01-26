@@ -1,4 +1,4 @@
-%% Gal8 recruitment and NP uptake quantification script
+   %% Gal8 recruitment and NP uptake quantification script
 
 % Adapted in 2021 by Eric Donders and Kai Slaughter under the supervision
 % of Molly Shoichet in the University of Toronto.
