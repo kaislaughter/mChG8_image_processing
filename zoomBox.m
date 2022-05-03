@@ -3,6 +3,7 @@
 %   Requirements:
 %    - Image Processing Toolbox
 %    - Machine Vision Toolbox
+%    - Computer Vision Toolbox
 
 %   Input: exported images from cleanComposite.m
 %   (or similar).
