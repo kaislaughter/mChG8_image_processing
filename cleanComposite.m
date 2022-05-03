@@ -27,7 +27,9 @@ scaleBar = 25;  % um
 p = 25;  % pixels (padding and thickness of scale bar)
 textSize = 48;  % point (font size for the scale bar label)
 
-extraChannel = false;  % set to true if there's a 4th cyan channel
+extraChannel = true;  % set to true if there's a 4th cyan channel
+nucTHSize = 10;  % pixels (used to separate nuclei from PL channel)
+% Note: the nuclei channel is not perfectly separated from the PL channel
 
 %% Setup
 disp('Choose input directory')
@@ -63,9 +65,10 @@ for i = 1:numImages
     % Isolate individual channels
     colloids = image(:, :, 1);
     if extraChannel == true
-        extra = image(:, :, 2) - colloids;
+        BTH = imtophat(image(:, :, 3), strel('disk', nucTHSize));
+        extra = BTH - colloids;
         gal8 = image(:, :, 2) - extra;
-        nuclei = image(:, :, 3) - colloids - extra;
+        nuclei = image(:, :, 3) - BTH;
     else
         gal8 = image(:, :, 2);
         nuclei = image(:, :, 3) - colloids;
