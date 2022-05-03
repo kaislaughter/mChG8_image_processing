@@ -17,6 +17,7 @@ clc, clear, close all;
 % size of zoomed in area
 zoomAreaW = 50;
 zoomAreaH = 50;
+
 % size of box in top right corner
 LboxW = 300;
 LboxH = 300;
@@ -39,7 +40,6 @@ for i = 1:numImages
     clc;
     disp(['Processing image ', num2str(i), ' of ', num2str(numImages)]);
     title = listing(i,1).name(1:end-4);
-    
     
     %% Only processes composite images
     if contains(title,'composite_zoomed_composite')  
@@ -83,6 +83,8 @@ for i = 1:numImages
             end-LboxW+1:end,:) = ...
             imresize(imageZoomed,[LboxH,LboxW]);
         
+        % determines which quadrant the selected region is in to position
+        % the zoom lines accordingly
         L1 = [pos(1)+boxBorder/2,pos(2)-boxBorder/2;
               imW-LboxW-boxBorder/2,1];
         L2 = [pos(1)+pos(3)-boxBorder/2,pos(2)+pos(4)+boxBorder/2;
