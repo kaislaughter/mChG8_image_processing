@@ -26,6 +26,17 @@ LboxH = 300;
 boxBorder = 4;
 lineThick = 2;
 
+% Optionally select only a subset of the images in the input directory
+%   This option is useful if there are multiple image categories in the
+%   input folder.
+%   Example: titleFilter = 'composite_zoomed_composite';
+%   Use an empty string (i.e., '') to process all images.
+titleFilter = '';
+
+% Define an identifier for the output images that is added to the end of
+% the filename.
+fileEnding = 'inset';
+
 %% Setup
 disp('Choose input directory')
 workingdir = [uigetdir(), filesep]; % Prompts user for input directory
@@ -42,7 +53,7 @@ for i = 1:numImages
     title = listing(i,1).name(1:end-4);
     
     %% Only processes composite images
-    if contains(title,'composite_zoomed_composite')  
+    if contains(title, titleFilter)  
         
         %% Load the image
         image = imread(strcat(workingdir, title, '.png'));
@@ -85,30 +96,26 @@ for i = 1:numImages
         
         % determines which quadrant the selected region is in to position
         % the zoom lines accordingly
-        L1 = [pos(1)+boxBorder/2,pos(2)-boxBorder/2;
-              imW-LboxW-boxBorder/2,1];
-        L2 = [pos(1)+pos(3)-boxBorder/2,pos(2)+pos(4)+boxBorder/2;
-              imW,LboxH+1+boxBorder/2];
+        L1 = [pos(1)+boxBorder/2,pos(2)-boxBorder/2,...
+            imW-LboxW-boxBorder/2,1];
+        L2 = [pos(1)+pos(3)-boxBorder/2,pos(2)+pos(4)+boxBorder/2,...
+            imW,LboxH+1+boxBorder/2];
         if pos(1) > imW-LboxW
-            L1(1,2) = pos(2)+pos(4)+boxBorder/2;
-            L1(2,2) = LboxH+1+boxBorder/2;
+            L1(2) = pos(2)+pos(4)+boxBorder/2;
+            L1(4) = LboxH+1+boxBorder/2;
         elseif pos(2) + pos(4) < LboxH
-            L2(1,1) = pos(1)+boxBorder/2;
-            L2(2,1) = imW-LboxW-boxBorder/2;
+            L2(1) = pos(1)+boxBorder/2;
+            L2(3) = imW-LboxW-boxBorder/2;
         end
 
         % draw rectange and line annotations
-        im_out = insertShape(im_out,'Rectangle',Lbox,...
-            'Color','w','LineWidth',boxBorder);
-        im_out = insertShape(im_out,'Rectangle',pos,...
+        im_out = insertShape(im_out,'Rectangle',[Lbox;pos],...
             'Color','w','LineWidth',boxBorder);
         im_out = insertShape(im_out,'Line',...
-            L1,'Color','w','LineWidth',lineThick);
-        im_out = insertShape(im_out,'Line',...
-            L2,'Color','w','LineWidth',lineThick);
+            [L1;L2],'Color','w','LineWidth',lineThick);
         
         % write output image
-        imwrite(im_out,strcat(exportBase,'colloids.png'));
+        imwrite(im_out,strcat(exportBase,fileEnding,'.png'));
 
     end
 end
