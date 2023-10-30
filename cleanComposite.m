@@ -27,7 +27,9 @@ scaleBar = 25;  % um
 p = 25;  % pixels (padding and thickness of scale bar)
 textSize = 48;  % point (font size for the scale bar label)
 
-extraChannel = true;  % set to true if there's a 4th cyan channel
+gal8Channel = true; % set to true if there's a gal8 channel
+gal8Remove = true; % set to true if there is a gal8 channel to remove
+plChannel = false;  % set to true if there's a 4th cyan channel
 nucTHSize = 10;  % pixels (used to separate nuclei from PL channel)
 % Note: the nuclei channel is not perfectly separated from the PL channel
 
@@ -64,14 +66,23 @@ for i = 1:numImages
     disp('Splitting and cropping the image...');
     % Isolate individual channels
     colloids = image(:, :, 1);
-    if extraChannel == true
-        BTH = imtophat(image(:, :, 3), strel('disk', nucTHSize));
-        extra = BTH - colloids;
-        gal8 = image(:, :, 2) - extra;
-        nuclei = image(:, :, 3) - BTH;
+    if gal8Channel == true
+        if plChannel == true
+            BTH = imtophat(image(:, :, 3), strel('disk', nucTHSize));
+            extra = BTH - colloids;
+            gal8 = image(:, :, 2) - extra;
+            nuclei = image(:, :, 3) - BTH;
+        else
+            gal8 = image(:, :, 2);
+            nuclei = image(:, :, 3) - colloids;
+        end
     else
-        gal8 = image(:, :, 2);
         nuclei = image(:, :, 3) - colloids;
+    end
+    
+    % takes out gal8 channel if gal8Remove = true
+    if gal8Remove == true
+        image = image - gal8;
     end
     
     % Crop the image to the inset.
@@ -79,11 +90,13 @@ for i = 1:numImages
         pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
     colloidsZoomed = colloids(...
         pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
-    gal8Zoomed = gal8(...
-        pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
     nucleiZoomed = nuclei(...
         pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
-    if extraChannel == true
+    if gal8Channel == true
+        gal8Zoomed = gal8(...
+            pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
+    end
+    if plChannel == true
         extraZoomed = extra(...
             pos(2)+1:pos(2)+pos(4)-1, pos(1)+1:pos(1)+pos(3)-1, :);
     end
@@ -124,11 +137,16 @@ for i = 1:numImages
     imwrite(image + SBL, strcat(exportBase, 'composite.png'));
     imwrite(cat(3, colloids, zerosLarge, colloids) + SBL,...
         strcat(exportBase, 'colloids.png'));
-    imwrite(cat(3, zerosLarge, gal8, zerosLarge) + SBL,...
-        strcat(exportBase, 'gal8.png'));
+    
     imwrite(cat(3, zerosLarge, zerosLarge, nuclei) + SBL,...
         strcat(exportBase, 'nuclei.png'));
-    if extraChannel == true
+    
+    if gal8Channel == true && gal8Remove == false
+        imwrite(cat(3, zerosLarge, gal8, zerosLarge) + SBL,...
+            strcat(exportBase, 'gal8.png'));
+    end
+    
+    if plChannel == true
         imwrite(cat(3, zerosLarge, extra, extra) + SBL,...
             strcat(exportBase, 'extra.png'));
     end
@@ -137,11 +155,16 @@ for i = 1:numImages
     imwrite(imageZoomed + SBS, strcat(exportBaseZoomed, 'composite.png'));
     imwrite(cat(3, colloidsZoomed, zerosSmall, colloidsZoomed) + SBS,...
         strcat(exportBaseZoomed, 'colloids.png'));
-    imwrite(cat(3, zerosSmall, gal8Zoomed, zerosSmall) + SBS,...
-        strcat(exportBaseZoomed, 'gal8.png'));
+    
     imwrite(cat(3, zerosSmall, zerosSmall, nucleiZoomed) + SBS,...
         strcat(exportBaseZoomed, 'nuclei.png'));
-    if extraChannel == true
+    
+    if gal8Channel == true && gal8Remove == false
+        imwrite(cat(3, zerosSmall, gal8Zoomed, zerosSmall) + SBS,...
+            strcat(exportBaseZoomed, 'gal8.png'));
+    end
+    
+    if plChannel == true
         imwrite(cat(3, zerosSmall, extraZoomed, extraZoomed) + SBS,...
             strcat(exportBaseZoomed, 'extra.png'));
     end

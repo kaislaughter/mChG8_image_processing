@@ -365,7 +365,11 @@ for i = 1:numImages % Iterate over all images.
         double(NPPLnumOverlap)/double(numFoci),...
         double(NPPLnumOverlap)/double(numNPs)};
     clc;
-    disp(outputArray(1:i,:));
+    if ~config('GAL8_CHANNEL')
+        disp([outputHeaders([1:6,11:14]);outputArray(1:i,[1:6,11:14])]);
+    else
+        disp([outputHeaders;outputArray(1:i,:)]);
+    end
       
     % Export the specified images.
     exportbase = strcat(exportdir, imageTitle, '_', config('RUN'), '_');
