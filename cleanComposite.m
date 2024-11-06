@@ -1,4 +1,4 @@
-%% Script for preparing composites for publication
+%% Script for preparing composites fohr publication
 
 %   Requirements:
 %    - Image Processing Toolbox
@@ -23,15 +23,25 @@ clc, clear, close all;
 pixelSize = 0.114;  % um
 zoomedWidth = 100;  % um
 zoomedHeight = 100;  % um
-scaleBar = 25;  % um
-p = 25;  % pixels (padding and thickness of scale bar)
-textSize = 48;  % point (font size for the scale bar label)
+scaleBarS = 25;  % um
+scaleBarL = 100; % um
+pS = 25;  % pixels (padding and thickness of scale bar) - small
+pL = 100; % pixels (padding and thickness of scale bar) - large
+scaleBarLabel = false;
+textSize = 24;  % point (font size for the scale bar label)
+fileType = '.png'; % type of file to process
 
-gal8Channel = true; % set to true if there's a gal8 channel
-gal8Remove = true; % set to true if there is a gal8 channel to remove
+gal8Channel = false; % set to true if there's a gal8 channel
+gal8Remove = false; % set to true if there is a gal8 channel to remove
 plChannel = false;  % set to true if there's a 4th cyan channel
 nucTHSize = 10;  % pixels (used to separate nuclei from PL channel)
 % Note: the nuclei channel is not perfectly separated from the PL channel
+
+separateChannels = true;
+numChannels = 2;
+nucleiMultiplier=1;
+NPMultiplier=2;
+Gal8Multiplier=2;
 
 %% Setup
 disp('Choose input directory')
@@ -39,15 +49,49 @@ workingdir = [uigetdir(), filesep]; % Prompts user for input directory
 disp('Choose output directory')
 exportdir = [uigetdir(), filesep]; % Prompts user for output directory
 
-listing = dir(strcat(workingdir, '*.png'));
-numImages = length(listing);
+listing = dir(strcat(workingdir,['*',fileType]));
+if separateChannels == true
+    numImages = length(listing)/(numChannels+1);
+else
+    numImages = length(listing);
+end
 
 for i = 1:numImages
+    if separateChannels == true
+        a = (numChannels+1)*i-(numChannels);
+    else
+        a=i;
+    end
     clc;
     disp(['Processing image ', num2str(i), ' of ', num2str(numImages)]);
-    title = listing(i,1).name(1:end-4);
+    title = listing(a,1).name(1:end-4);
+    disp(title);
     %% Load the image
-    image = imread(strcat(workingdir, title, '.png'));
+    if separateChannels == true
+        if gal8Channel == true
+            title = listing(a,1).name(1:end-4);
+            imageGal8 = imread(strcat(workingdir, title, fileType));
+            title = listing(a+1,1).name(1:end-4);
+            imageNP = imread(strcat(workingdir, title, fileType));
+            title = listing(a+2,1).name(1:end-4);
+            imageNuc = imread(strcat(workingdir, title, fileType));
+            title = listing(a+3,1).name(1:end-4);
+            image = imread(strcat(workingdir, title, fileType));
+        else
+            title = listing(a,1).name(1:end-4);
+            imageNP = imread(strcat(workingdir, title, fileType));
+            title = listing(a+1,1).name(1:end-4);
+            imageNuc = imread(strcat(workingdir, title, fileType));
+            title = listing(a+2,1).name(1:end-4);
+            image = imread(strcat(workingdir, title, fileType));
+        end
+    else
+        image = imread(strcat(workingdir, title, fileType));
+    end
+
+    largeHeight = height(image);
+    largeWidth = width(image);
+    zerosLarge = zeros(largeHeight, largeWidth, 'uint16');
 
     %% Get the user to select ROIs for the zoomed sections
     % Display the image and a rectangular ROI that the user can move.
@@ -65,19 +109,31 @@ for i = 1:numImages
     %% Export images and insets with added scale bars
     disp('Splitting and cropping the image...');
     % Isolate individual channels
-    colloids = image(:, :, 1);
-    if gal8Channel == true
-        if plChannel == true
-            BTH = imtophat(image(:, :, 3), strel('disk', nucTHSize));
-            extra = BTH - colloids;
-            gal8 = image(:, :, 2) - extra;
-            nuclei = image(:, :, 3) - BTH;
+    
+    if separateChannels == true
+        colloids = imageNP(:,:,1)*NPMultiplier;
+        nuclei = imageNuc(:,:,3)*nucleiMultiplier;
+        if gal8Channel == true
+            gal8 = imageGal8(:,:,2)*Gal8Multiplier;
+            image = cat(3,colloids,gal8,nuclei+colloids);
         else
-            gal8 = image(:, :, 2);
-            nuclei = image(:, :, 3) - colloids;
+            image = cat(3,colloids,zerosLarge,nuclei+colloids);
         end
     else
-        nuclei = image(:, :, 3) - colloids;
+        colloids = image(:, :, 1);
+        if gal8Channel == true
+            if plChannel == true
+                BTH = imtophat(image(:, :, 3), strel('disk', nucTHSize));
+                extra = BTH - colloids;
+                gal8 = image(:, :, 2) - extra;
+                nuclei = image(:, :, 3) - BTH;
+            else
+                gal8 = image(:, :, 2);
+                nuclei = image(:, :, 3) - colloids;
+            end
+        else
+            nuclei = image(:, :, 3) - colloids;
+        end
     end
     
     % takes out gal8 channel if gal8Remove = true
@@ -105,7 +161,8 @@ for i = 1:numImages
     largeWidth = width(nuclei);
     smallHeight = floor(zoomedHeight/pixelSize);
     smallWidth = floor(zoomedWidth/pixelSize);
-    scaleBarWidth = floor(scaleBar/pixelSize);
+    scaleBarWidthS = floor(scaleBarS/pixelSize);
+    scaleBarWidthL = floor(scaleBarL/pixelSize);
     
     % Create images for the scale bar for both full and zoomed images.
     disp('Adding the scale bar...');
@@ -114,21 +171,23 @@ for i = 1:numImages
     zerosSmall = zeros(smallHeight, smallWidth, 'uint16');
     SBS = zeros(smallHeight, smallWidth, 3, 'uint16');
     % Create a white rectangle for the scale bar.
-    SBL(largeHeight-2*p:largeHeight-p,...
-        largeWidth-p-scaleBarWidth:largeWidth-p, :) = 65535;
-    SBS(smallHeight-2*p:smallHeight-p,...
-        smallWidth-p-scaleBarWidth:smallWidth-p, :) = 65535;
+    SBL(largeHeight-2*pL:largeHeight-pL,...
+        largeWidth-pL-scaleBarWidthL:largeWidth-pL, :) = 65535;
+    SBS(smallHeight-2*pS:smallHeight-pS,...
+        smallWidth-pS-scaleBarWidthS:smallWidth-pS, :) = 65535;
     % Add a text label to the scale bars.
-    SBL = insertText(SBL,...
-        [largeWidth-p-floor(scaleBarWidth/2), largeHeight-2*p],...
-        [num2str(scaleBar) ' µm'], 'TextColor', 'white',...
-        'BoxOpacity', 0, 'FontSize', textSize,...
-        'AnchorPoint', 'CenterBottom');
-    SBS = insertText(SBS,...
-        [smallWidth-p-floor(scaleBarWidth/2), smallHeight-2*p],...
-        [num2str(scaleBar) ' µm'], 'TextColor', 'white',...
-        'BoxOpacity', 0, 'FontSize', textSize,...
-        'AnchorPoint', 'CenterBottom');  
+    if scaleBarLabel == true
+        SBL = insertText(SBL,...
+            [largeWidth-pL-floor(scaleBarWidthL/2), largeHeight-2*pL],...
+            [num2str(scaleBarS) ' µm'], 'TextColor', 'white',...
+            'BoxOpacity', 0, 'FontSize', textSize,...
+            'AnchorPoint', 'CenterBottom');
+        SBS = insertText(SBS,...
+            [smallWidth-pS-floor(scaleBarWidthS/2), smallHeight-2*pS],...
+            [num2str(scaleBarS) ' µm'], 'TextColor', 'white',...
+            'BoxOpacity', 0, 'FontSize', textSize,...
+            'AnchorPoint', 'CenterBottom');  
+    end
     
     % Write the images.
     disp('Writing the images to disk...');
@@ -136,7 +195,7 @@ for i = 1:numImages
     exportBase = strcat(exportdir, title, '_');
     imwrite(image + SBL, strcat(exportBase, 'composite.png'));
     imwrite(cat(3, colloids, zerosLarge, colloids) + SBL,...
-        strcat(exportBase, 'colloids.png'));
+        strcat(exportBase, 'NPs.png'));
     
     imwrite(cat(3, zerosLarge, zerosLarge, nuclei) + SBL,...
         strcat(exportBase, 'nuclei.png'));
@@ -154,7 +213,7 @@ for i = 1:numImages
     exportBaseZoomed = strcat(exportBase, 'zoomed_');
     imwrite(imageZoomed + SBS, strcat(exportBaseZoomed, 'composite.png'));
     imwrite(cat(3, colloidsZoomed, zerosSmall, colloidsZoomed) + SBS,...
-        strcat(exportBaseZoomed, 'colloids.png'));
+        strcat(exportBaseZoomed, 'NPs.png'));
     
     imwrite(cat(3, zerosSmall, zerosSmall, nucleiZoomed) + SBS,...
         strcat(exportBaseZoomed, 'nuclei.png'));
