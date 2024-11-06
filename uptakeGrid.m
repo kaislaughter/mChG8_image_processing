@@ -27,28 +27,35 @@ zoomedHeight = 100;  % um
 p = 25;  % pixels (border width)
 textSize = 48;  % point (font size for labels)
 leftMargin = 10;
-brightnessMultiplier = 3;
+brightnessMultiplier = 2;
 
-zoomed = false;
+zoomed = true;
 manualEntry = true;
-nonUniformImages = true;
+nonUniformImages = false ;
+gal8channel = false;
 
 if zoomed == true
     nucName = 'zoomed_nuclei';
-    collName = 'zoomed_colloids';
+    collName = 'zoomed_NPs';
     compName = 'zoomed_composite';
+    if gal8channel == true
+        gal8Name = 'zoomed_gal8';
+    end
 else
     nucName = 'composite_nuclei';
     collName = 'composite_colloids';
     compName = 'composite_composite';
+    if gal8channel == true
+        gal8Name = 'composite_gal8';
+    end
 end
 
-
-imageList = [130,65,125,15,70,95];
+imageList = [21,11,101];
 %% Setup
 
 disp('Choose directory')
-workingdir = [uigetdir(), filesep]; % Prompts user for input directory
+%workingdir = [uigetdir(), filesep]; % Prompts user for input directory
+workingdir = '/Users/kai/Desktop/Uptake Images ApoE/';
 listing = dir(strcat(workingdir, '*.png'));
 
 list_full = [];
@@ -66,6 +73,9 @@ end
 
     list_ZNuc = list_full(contains(list_full.name,nucName),:);
     list_ZColl = list_full(contains(list_full.name,collName),:);
+    if gal8channel == true
+        list_ZGal8 = list_full(contains(list_full.name,gal8Name),:);
+    end
     list_ZComp = list_full(contains(list_full.name,compName),:);
 
 numGroups = height(list_ZNuc);
@@ -81,18 +91,35 @@ for i = 1:numImages
     imColl = imread(strcat(workingdir, titleColl));
     titleComp = char(list_ZComp(i,1).name);
     imComp = imread(strcat(workingdir, titleComp));
-    
-    if nonUniformImages == true
-        p=p0 + 5300-size(imNuc,2);
+
+    if gal8channel == true
+        titleGal8 = char(list_ZGal8(i,1).name);
+        imGal8 = imread(strcat(workingdir, titleGal8));
     end
     
-    imOut = [imOut;...
-        ones(size(imNuc,1),leftMargin+p,3)*65535,...
-        imNuc,...
-        ones(size(imNuc,1),p,3)*65535,...
-        imColl,...
-        ones(size(imNuc,1),p,3)*65535,...
-        imComp];
+    if nonUniformImages == true
+        p=p0 + 5400-size(imNuc,2);
+    end
+    
+    if gal8channel == true
+        imOut = [imOut;...
+            ones(size(imNuc,1),leftMargin+p,3)*65535,...
+            imNuc,...
+            ones(size(imNuc,1),p,3)*65535,...
+            imColl,...
+            ones(size(imNuc,1),p,3)*65535,...
+            imGal8,...
+            ones(size(imNuc,1),p,3)*65535,...
+            imComp];
+    else
+        imOut = [imOut;...
+            ones(size(imNuc,1),leftMargin+p,3)*65535,...
+            imNuc,...
+            ones(size(imNuc,1),p,3)*65535,...
+            imColl,...
+            ones(size(imNuc,1),p,3)*65535,...
+            imComp];
+    end
     imOut = insertText(imOut,...
         [leftMargin-200,(2*i-1)*(size(imNuc,1)+p)/2+p],...
         titleComp(1:end-33),'FontSize',100,'AnchorPoint','RightBottom',...
@@ -103,4 +130,4 @@ for i = 1:numImages
 end
 
 imshow(imOut*brightnessMultiplier)
-imwrite(imOut*brightnessMultiplier,'grid_images.png');
+imwrite(imOut*brightnessMultiplier,[workingdir,'grid_images.png']);
